@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
+import type { CountryCode } from "@/lib/currency";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -22,8 +23,14 @@ const navLinks = [
   { to: "/estrenos", label: "Estrenos y preventas" },
 ];
 
+const COUNTRY_FLAGS: Record<CountryCode, { flag: string; label: string }> = {
+  AR: { flag: "🇦🇷", label: "Argentina (ARS)" },
+  UY: { flag: "🇺🇾", label: "Uruguay (UYU)" },
+  OTHER: { flag: "🌎", label: "Internacional (USD)" },
+};
+
 export const Navbar = () => {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, signOut, country, setCountry } = useAuth();
   const { itemCount } = useCart();
   const [open, setOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -69,6 +76,26 @@ export const Navbar = () => {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Country selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Cambiar país" className="text-lg">
+                {COUNTRY_FLAGS[country].flag}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-card border-border min-w-[180px]">
+              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { flag: string; label: string }][]).map(([code, { flag, label }]) => (
+                <DropdownMenuItem
+                  key={code}
+                  onClick={() => setCountry(code)}
+                  className={`font-display text-sm ${country === code ? "text-primary font-bold" : ""}`}
+                >
+                  <span className="mr-2">{flag}</span>{label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button variant="ghost" size="icon" asChild>
             <Link to="/catalogo" aria-label="Buscar"><Search className="h-5 w-5" /></Link>
           </Button>
@@ -148,6 +175,22 @@ export const Navbar = () => {
                 <Link to="/auth" onClick={() => setOpen(false)}>Ingresar</Link>
               </Button>
             )}
+            <div className="h-px bg-border/40 my-2" />
+            <p className="py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground font-display">Moneda</p>
+            <div className="flex gap-2 pl-4">
+              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { flag: string; label: string }][]).map(([code, { flag, label }]) => (
+                <Button
+                  key={code}
+                  variant={country === code ? "neon" : "ghost"}
+                  size="sm"
+                  onClick={() => { setCountry(code); setOpen(false); }}
+                  className="text-lg px-2"
+                  aria-label={label}
+                >
+                  {flag}
+                </Button>
+              ))}
+            </div>
           </nav>
         </div>
       )}

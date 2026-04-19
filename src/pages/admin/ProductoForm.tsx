@@ -25,6 +25,16 @@ const slugify = (s: string) =>
 const buildProductSlug = (title: string, platform: string, accountTier: string) =>
   slugify([title, platform, accountTier].filter(Boolean).join(" "));
 
+/** Redondea al $100 más cercano: $1160→$1200, $1140→$1100 */
+const roundTo100 = (n: number) => Math.round(n / 100) * 100;
+
+const computeFinalPrice = (resellerPrice: string, markupPct: string): string => {
+  const base = parseFloat(resellerPrice);
+  const pct = parseFloat(markupPct);
+  if (!base || isNaN(base) || !pct || isNaN(pct)) return "";
+  return String(roundTo100(base * (1 + pct / 100)));
+};
+
 const ProductoForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -34,6 +44,7 @@ const ProductoForm = () => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     title: "", slug: "", description: "", price: "", discount_price: "", reseller_price: "",
+    markup_pct: "",
     stock: "1", platform: "PS5", account_tier: "primary", genre: "", cover_url: "",
     release_year: "", featured: false, is_active: true,
   });
@@ -42,13 +53,21 @@ const ProductoForm = () => {
     document.title = isNew ? "Nuevo producto | Admin" : "Editar producto | Admin";
     if (isNew) return;
     supabase.from("products").select("*").eq("id", id!).maybeSingle().then(({ data }) => {
-      if (data) setForm({
+      if (data) {
+        const resellerStr = data.reseller_price ? String(data.reseller_price) : "";
+        const priceStr = String(data.price);
+        let markupPct = "";
+        if (data.reseller_price && data.reseller_price > 0 && data.price > 0) {
+          markupPct = String(Math.round(((data.price / data.reseller_price) - 1) * 100));
+        }
+        setForm({
         title: data.title,
         slug: data.slug,
         description: data.description ?? "",
-        price: String(data.price),
+        price: priceStr,
         discount_price: data.discount_price ? String(data.discount_price) : "",
-        reseller_price: data.reseller_price ? String(data.reseller_price) : "",
+        reseller_price: resellerStr,
+        markup_pct: markupPct,
         stock: String(data.stock),
         platform: inferPlatform(data),
         account_tier: inferAccountTier(data),
@@ -58,6 +77,7 @@ const ProductoForm = () => {
         featured: data.featured,
         is_active: data.is_active,
       });
+      }
     });
   }, [id, isNew]);
 
@@ -76,6 +96,14 @@ const ProductoForm = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.reseller_price || !Number(form.reseller_price)) {
+      toast.error("El precio de revendedor es obligatorio");
+      return;
+    }
+    if (!form.price || !Number(form.price)) {
+      toast.error("Ingresá el porcentaje para calcular el precio final");
+      return;
+    }
     setSaving(true);
     const payload = {
       title: form.title,
@@ -209,17 +237,34 @@ const ProductoForm = () => {
           <h2 className="font-display font-bold text-base uppercase tracking-wider">Precio y stock</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="price">Precio cliente final (ARS) *</Label>
-              <Input id="price" type="number" step="0.01" required value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="bg-input mt-1" />
+              <Label htmlFor="reseller_price">Precio revendedor (ARS) *</Label>
+              <Input id="reseller_price" type="number" step="1" required value={form.reseller_price} onChange={(e) => {
+                const newReseller = e.target.value;
+                const newPrice = computeFinalPrice(newReseller, form.markup_pct);
+                setForm({ ...form, reseller_price: newReseller, price: newPrice || form.price });
+              }} className="bg-input mt-1" />
+            </div>
+            <div>
+              <Label htmlFor="markup_pct">Porcentaje cliente final (%)</Label>
+              <Input id="markup_pct" type="number" step="1" value={form.markup_pct} onChange={(e) => {
+                const newPct = e.target.value;
+                const newPrice = computeFinalPrice(form.reseller_price, newPct);
+                setForm({ ...form, markup_pct: newPct, price: newPrice || form.price });
+              }} className="bg-input mt-1" placeholder="Ej: 16" />
+              <p className="text-xs text-muted-foreground mt-1">Precio final = revendedor + %  (redondeado a $100)</p>
+            </div>
+            <div>
+              <Label htmlFor="price">Precio cliente final (ARS)</Label>
+              <Input id="price" type="number" step="1" value={form.price} readOnly className="bg-input mt-1 opacity-70" />
+              {form.reseller_price && form.markup_pct && form.price && (
+                <p className="text-xs text-primary mt-1">
+                  ${form.reseller_price} + {form.markup_pct}% = ${form.price}
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="discount_price">Precio oferta cliente (ARS)</Label>
-              <Input id="discount_price" type="number" step="0.01" value={form.discount_price} onChange={(e) => setForm({ ...form, discount_price: e.target.value })} className="bg-input mt-1" />
-            </div>
-            <div>
-              <Label htmlFor="reseller_price">Precio revendedor (ARS)</Label>
-              <Input id="reseller_price" type="number" step="0.01" value={form.reseller_price} onChange={(e) => setForm({ ...form, reseller_price: e.target.value })} className="bg-input mt-1" />
-              <p className="text-xs text-muted-foreground mt-1">Si está vacío, revendedores ven el precio base</p>
+              <Input id="discount_price" type="number" step="1" value={form.discount_price} onChange={(e) => setForm({ ...form, discount_price: e.target.value })} className="bg-input mt-1" />
             </div>
             <div>
               <Label htmlFor="stock">Stock *</Label>
