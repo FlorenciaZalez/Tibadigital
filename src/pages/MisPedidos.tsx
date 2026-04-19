@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Package, ChevronLeft, ShoppingBag, Upload, KeyRound, Copy, Loader2, CheckCircle2, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDeliveredAccountContent } from "@/lib/accountContent";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { stripSourceMetadata } from "@/lib/sourceMetadata";
@@ -293,16 +294,30 @@ const MisPedidos = () => {
                     </div>
                     {orderKeys.map((k) => (
                       <div key={k.id} className="bg-primary/5 border border-primary/30 rounded-lg p-3 space-y-1">
+                        {(() => {
+                          const formattedContent = k.key_type === "account"
+                            ? formatDeliveredAccountContent({
+                                content: k.content,
+                                notes: k.notes,
+                                title: order.order_items[0]?.product_title,
+                              })
+                            : k.content;
+
+                          return (
+                            <>
                         <div className="text-xs font-display uppercase tracking-wider text-secondary">
                           {k.key_type === "code" ? "Codigo" : "Cuenta"}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="font-mono text-sm bg-background/50 px-2 py-1 rounded flex-1 whitespace-pre-line break-all">{k.content}</div>
-                          <Button size="icon" variant="ghost" onClick={() => copy(k.content)}>
+                          <div className="font-mono text-sm bg-background/50 px-2 py-1 rounded flex-1 whitespace-pre-line break-all">{formattedContent}</div>
+                          <Button size="icon" variant="ghost" onClick={() => copy(formattedContent)}>
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
                         {stripSourceMetadata(k.notes) && <p className="text-xs text-muted-foreground">{stripSourceMetadata(k.notes)}</p>}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>

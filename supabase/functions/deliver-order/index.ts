@@ -1,5 +1,6 @@
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { formatDeliveredAccountContent } from "../_shared/accountContent.ts";
 import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
 import { extractSourceCodeFromContent, extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
 
@@ -150,9 +151,12 @@ Deno.serve(async (req) => {
     // Construir mensaje
     const itemsHtml = deliveredItems.map(({ title, key }) => {
       if (!key) return `<li><b>${escapeHtml(title)}</b>: ⏳ Sin stock disponible. Te contactamos en breve.</li>`;
+      const displayContent = key.key_type === "account"
+        ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
+        : key.content;
       const content = key.key_type === "account"
-        ? `<div style="margin-top:8px;white-space:pre-line;background:#171717;border-radius:8px;padding:10px 12px;">👤 ${escapeHtml(key.content)}</div>`
-        : `<br/>🎮 <code style="background:#f3f3f3;padding:4px 8px;border-radius:4px;">${escapeHtml(key.content)}</code>`;
+        ? `<div style="margin-top:8px;white-space:pre-line;background:#171717;border-radius:8px;padding:10px 12px;">👤 ${escapeHtml(displayContent)}</div>`
+        : `<br/>🎮 <code style="background:#f3f3f3;padding:4px 8px;border-radius:4px;">${escapeHtml(displayContent)}</code>`;
       const cleanNotes = stripSourceMetadata(key.notes);
       const notes = cleanNotes ? `<br/><small>${escapeHtml(cleanNotes)}</small>` : "";
       return `<li><b>${escapeHtml(title)}</b>${content}${notes}</li>`;
@@ -169,9 +173,15 @@ Deno.serve(async (req) => {
   <p style="color:#888;font-size:12px;">Cualquier consulta, respondé este email. ¡Gracias por elegir TIBADIGITAL!</p>
 </div></body></html>`;
 
-    const textParts = deliveredItems.map(({ title, key }) =>
-      key ? `• ${title}: ${key.content}${stripSourceMetadata(key.notes) ? " (" + stripSourceMetadata(key.notes) + ")" : ""}` : `• ${title}: sin stock - te contactamos`
-    ).join("\n");
+    const textParts = deliveredItems.map(({ title, key }) => {
+      if (!key) return `• ${title}: sin stock - te contactamos`;
+
+      const displayContent = key.key_type === "account"
+        ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
+        : key.content;
+
+      return `• ${title}: ${displayContent}${stripSourceMetadata(key.notes) ? " (" + stripSourceMetadata(key.notes) + ")" : ""}`;
+    }).join("\n");
     const text = `¡Pago confirmado! Pedido ${order.public_code}\n\n${textParts}\n\nGracias por elegir TIBADIGITAL.`;
 
     // Enviar email via Lovable AI Gateway → Resend-compatible (usamos directamente Resend si hubiera, o registramos)

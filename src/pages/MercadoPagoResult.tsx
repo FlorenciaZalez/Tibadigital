@@ -50,8 +50,23 @@ const MercadoPagoResult = () => {
       }
 
       if (data?.status === "approved") {
+        if (data?.delivery_failed) {
+          setMessage("Pago aprobado. La entrega automática falló; estamos reintentando.");
+
+          const { data: retryData, error: retryError } = await supabase.functions.invoke("retry-delivery", {
+            body: { order_id: orderId },
+          });
+
+          if (retryError || retryData?.ok === false) {
+            setState("approved");
+            setMessage("Pago aprobado. La entrega quedó pendiente y podés reintentarla desde Mis pedidos.");
+            toast.error(retryError?.message || retryData?.error || "No pudimos completar la entrega automática.");
+            return;
+          }
+        }
+
         setState("approved");
-        setMessage("Pago aprobado. Estamos entregando tu pedido.");
+        setMessage("Pago aprobado. Tu pedido ya fue entregado.");
         toast.success("Pago aprobado");
         return;
       }

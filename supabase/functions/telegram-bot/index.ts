@@ -8,6 +8,37 @@ const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 const TELEGRAM_ADMIN_CHAT_ID = Deno.env.get("TELEGRAM_ADMIN_CHAT_ID")!;
 const WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET"); // opcional
 
+const DELIVERY_RETRY_DELAYS_MS = [0, 800, 1800];
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const triggerDelivery = async (orderId: string) => {
+  let lastError: Error | null = null;
+
+  for (const delayMs of DELIVERY_RETRY_DELAYS_MS) {
+    if (delayMs > 0) await wait(delayMs);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_KEY}`,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (response.ok && !payload?.error) {
+      return payload;
+    }
+
+    lastError = new Error(payload?.error || `deliver-order failed (${response.status})`);
+    console.error("telegram-bot delivery attempt failed", { orderId, delayMs, error: lastError.message });
+  }
+
+  throw lastError ?? new Error("deliver-order failed");
+};
+
 Deno.serve(async (req) => {
   // Solo aceptamos POST de Telegram
   if (req.method !== "POST") {
@@ -87,18 +118,8 @@ Deno.serve(async (req) => {
       // Disparar entrega automática
       let deliveryOk = false;
       try {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/deliver-order`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${SERVICE_KEY}`,
-            },
-            body: JSON.stringify({ order_id: orderId }),
-          },
-        );
-        deliveryOk = res.ok;
+        await triggerDelivery(orderId);
+        deliveryOk = true;
       } catch (e) {
         console.error("Delivery call failed:", e);
       }

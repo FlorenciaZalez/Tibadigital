@@ -9,22 +9,35 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MP_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
 
-const triggerDelivery = async (orderId: string) => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SERVICE_KEY}`,
-    },
-    body: JSON.stringify({ order_id: orderId }),
-  });
+const DELIVERY_RETRY_DELAYS_MS = [0, 800, 1800];
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || payload?.error) {
-    throw new Error(payload?.error || `deliver-order failed (${response.status})`);
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const triggerDelivery = async (orderId: string) => {
+  let lastError: Error | null = null;
+
+  for (const delayMs of DELIVERY_RETRY_DELAYS_MS) {
+    if (delayMs > 0) await wait(delayMs);
+
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_KEY}`,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (response.ok && !payload?.error) {
+      return payload;
+    }
+
+    lastError = new Error(payload?.error || `deliver-order failed (${response.status})`);
+    console.error("confirm-mercadopago-payment delivery attempt failed", { orderId, delayMs, error: lastError.message });
   }
 
-  return payload;
+  throw lastError ?? new Error("deliver-order failed");
 };
 
 Deno.serve(async (req) => {

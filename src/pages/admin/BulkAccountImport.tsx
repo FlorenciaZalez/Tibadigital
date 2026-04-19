@@ -55,13 +55,12 @@ const normalizeTitle = (value: string) =>
 const POSITIONAL_COLUMNS = [
   "codigo",
   "juego",
-  "usuario",
   "correo",
   "contrasena",
   "p_s",
   "consola",
   "estado",
-  "marca",
+  "checkbox",
   "notes",
 ];
 
@@ -118,6 +117,19 @@ const mapMatrixRowToObject = (row: CsvMatrixRow) => {
   return mappedRow;
 };
 
+const mapRowsWithHeader = (headerRow: CsvMatrixRow, dataRows: CsvMatrixRow[]) =>
+  dataRows.map((row) => {
+    const mappedRow: CsvRow = {};
+
+    row.forEach((value, index) => {
+      const headerKey = normalizeHeader(headerRow[index] ?? "");
+      const key = headerKey || POSITIONAL_COLUMNS[index] || `extra_${index}`;
+      mappedRow[key] = value?.trim() ?? "";
+    });
+
+    return mappedRow;
+  });
+
 const parseCsvRows = (csvText: string) => {
   const matrixParse = Papa.parse<CsvMatrixRow>(csvText, {
     header: false,
@@ -134,17 +146,7 @@ const parseCsvRows = (csvText: string) => {
   }
 
   if (rowLooksLikeHeader(matrixRows[0])) {
-    const headerParse = Papa.parse<CsvRow>(csvText, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: normalizeHeader,
-    });
-
-    if (headerParse.errors.length > 0) {
-      return { rows: [] as CsvRow[], error: headerParse.errors[0].message };
-    }
-
-    return { rows: headerParse.data, error: null };
+    return { rows: mapRowsWithHeader(matrixRows[0], matrixRows.slice(1)), error: null };
   }
 
   return { rows: matrixRows.map(mapMatrixRowToObject), error: null };
@@ -567,7 +569,7 @@ const BulkAccountImport = () => {
             onChange={(event) => setCsvText(event.target.value)}
             rows={14}
             className="bg-input font-mono text-xs"
-            placeholder={"codigo,juego,usuario,contrasena,p/s,consola,estado\nKS023,Sonic Colours: Ultimate,su0jyhpm@duck.com,Pelon3523,SECUNDARIA,PS5,DISPONIBLE"}
+            placeholder={"codigo,juego,correo,contrasena,p/s,consola,estado\nKS023,Sonic Colours: Ultimate,su0jyhpm@duck.com,Pelon3523,SECUNDARIA,PS5,DISPONIBLE"}
           />
 
           <div className="flex gap-3 flex-wrap">
