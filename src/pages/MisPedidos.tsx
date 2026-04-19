@@ -64,6 +64,7 @@ const MisPedidos = () => {
   const [loading, setLoading] = useState(true);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [verifyingFor, setVerifyingFor] = useState<string | null>(null);
+  const [retryingFor, setRetryingFor] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "Mis pedidos | TIBADIGITAL";
@@ -128,6 +129,24 @@ const MisPedidos = () => {
     toast.success("Copiado");
   };
 
+  const retryDelivery = async (orderId: string) => {
+    setRetryingFor(orderId);
+    try {
+      const { data, error } = await supabase.functions.invoke("deliver-order", {
+        body: { order_id: orderId },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(data?.already_delivered ? "Ese pedido ya estaba entregado" : "Entrega reintentada con éxito");
+      await refresh();
+    } catch (e: any) {
+      toast.error(`No pudimos reintentar la entrega: ${e.message}`);
+    }
+    setRetryingFor(null);
+  };
+
   return (
     <div className="container py-12 max-w-4xl">
       <Button variant="ghost" size="sm" asChild className="mb-4">
@@ -156,6 +175,8 @@ const MisPedidos = () => {
             const needsProof = ["pending"].includes(order.status) && order.verification_status === "not_submitted" && order.payment_method !== "mercadopago";
             const verifying = verifyingFor === order.id;
             const uploading = uploadingFor === order.id;
+            const retrying = retryingFor === order.id;
+            const needsDeliveryRetry = order.verification_status === "verified" && order.status === "paid" && orderKeys.length === 0;
 
             return (
               <div key={order.id} className="card-cyber rounded-xl p-5 space-y-4">
@@ -246,6 +267,14 @@ const MisPedidos = () => {
                     </div>
                     {order.verification_notes && !verifying && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{order.verification_notes}</p>
+                    )}
+                    {needsDeliveryRetry && (
+                      <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-3">
+                        <p className="text-sm text-warning font-display">Pago verificado, pero la entrega no terminó. Reintentá desde acá.</p>
+                        <Button onClick={() => retryDelivery(order.id)} variant="outline" disabled={retrying}>
+                          {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando entrega...</> : <><KeyRound className="h-4 w-4" />Reintentar entrega</>}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}

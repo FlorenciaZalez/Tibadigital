@@ -19,12 +19,26 @@ Deno.serve(async (req) => {
 
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+    const authHeader = req.headers.get("Authorization");
+    const accessToken = authHeader?.replace("Bearer ", "").trim();
+    if (!accessToken) return json({ error: "No auth" }, 401);
+
     const { order_id } = await req.json();
     if (!order_id) return json({ error: "order_id required" }, 400);
 
     const { data: order, error: oErr } = await supabase
       .from("orders").select("*, order_items(*)").eq("id", order_id).single();
     if (oErr || !order) return json({ error: "Order not found" }, 404);
+
+    if (accessToken !== SERVICE_KEY) {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser(accessToken);
+      if (userErr || !user) return json({ error: "Invalid auth" }, 401);
+      if (user.id !== order.user_id) return json({ error: "Forbidden" }, 403);
+    }
+
+    if (order.status === "delivered") {
+      return json({ delivered: true, already_delivered: true });
+    }
 
     // Email del usuario
     const { data: userData } = await supabase.auth.admin.getUserById(order.user_id);

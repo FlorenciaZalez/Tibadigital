@@ -9,6 +9,24 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MP_TOKEN = Deno.env.get("MERCADOPAGO_ACCESS_TOKEN");
 
+const triggerDelivery = async (orderId: string) => {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SERVICE_KEY}`,
+    },
+    body: JSON.stringify({ order_id: orderId }),
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || payload?.error) {
+    throw new Error(payload?.error || `deliver-order failed (${response.status})`);
+  }
+
+  return payload;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -75,14 +93,15 @@ Deno.serve(async (req) => {
       verification_notes: "Pago confirmado por Mercado Pago",
     }).eq("id", order_id);
 
-    await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${SERVICE_KEY}`,
-      },
-      body: JSON.stringify({ order_id }),
-    });
+    try {
+      await triggerDelivery(order_id);
+    } catch (deliveryError) {
+      const message = (deliveryError as Error).message;
+      await supabase.from("orders").update({
+        verification_notes: `Pago confirmado por Mercado Pago. Entrega pendiente: ${message}`,
+      }).eq("id", order_id);
+      return json({ status: "approved", payment_id: String(payment.id), delivery_failed: true, delivery_error: message });
+    }
 
     return json({ status: "approved", payment_id: String(payment.id) });
   } catch (e) {
