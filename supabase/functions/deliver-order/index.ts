@@ -65,7 +65,16 @@ Deno.serve(async (req) => {
     if (accessToken !== SERVICE_KEY) {
       const { data: { user }, error: userErr } = await supabase.auth.getUser(accessToken);
       if (userErr || !user) return json({ error: "Invalid auth" }, 401);
-      if (user.id !== order.user_id) return json({ error: "Forbidden" }, 403);
+      if (user.id !== order.user_id) {
+        const { data: roleRow } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin")
+          .maybeSingle();
+
+        if (!roleRow) return json({ error: "Forbidden" }, 403);
+      }
     }
 
     // Email del usuario
