@@ -2,3 +2,6 @@ project_id = "ywvudwfpayweajajxxcv"
 
 [functions.deliver-order]
 verify_jwt = false
+
+[functions.retry-delivery]
+verify_jwt = false
