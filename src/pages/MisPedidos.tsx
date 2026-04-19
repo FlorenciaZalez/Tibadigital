@@ -137,6 +137,7 @@ const MisPedidos = () => {
       });
 
       if (error) throw error;
+      if (data?.ok === false) throw new Error(data.error);
       if (data?.error) throw new Error(data.error);
 
       toast.success(data?.already_delivered ? "Ese pedido ya estaba entregado" : "Entrega reintentada con éxito");

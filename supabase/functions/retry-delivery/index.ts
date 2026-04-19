@@ -42,7 +42,10 @@ Deno.serve(async (req) => {
     });
 
     const payload = await response.json().catch(() => ({ error: `deliver-order failed (${response.status})` }));
-    return json(payload, response.status);
+    if (!response.ok) {
+      return json({ ok: false, error: payload?.error || `deliver-order failed (${response.status})` });
+    }
+    return json({ ok: true, ...payload });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }

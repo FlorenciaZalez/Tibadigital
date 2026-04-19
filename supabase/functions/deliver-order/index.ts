@@ -42,8 +42,7 @@ Deno.serve(async (req) => {
 
     // Email del usuario
     const { data: userData } = await supabase.auth.admin.getUserById(order.user_id);
-    const email = userData?.user?.email;
-    if (!email) return json({ error: "No email for user" }, 400);
+    const email = userData?.user?.email ?? null;
 
     const { data: profile } = await supabase
       .from("profiles").select("full_name, whatsapp").eq("user_id", order.user_id).single();
@@ -129,7 +128,9 @@ Deno.serve(async (req) => {
     try {
       // Usar Lovable AI Gateway no aplica para email. Por ahora intentamos con Resend si está, sino marcamos pendiente.
       const RESEND = Deno.env.get("RESEND_API_KEY");
-      if (RESEND) {
+      if (!email) {
+        emailError = "No email for user";
+      } else if (RESEND) {
         const r = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${RESEND}`, "Content-Type": "application/json" },
