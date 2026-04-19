@@ -64,7 +64,23 @@ Deno.serve(async (req) => {
       .single();
 
     if (orderErr || !order) return json({ error: "Order not found" }, 404);
-    if (order.verification_status === "verified") return json({ status: "approved", already_verified: true });
+    if (order.verification_status === "verified") {
+      if (order.status === "delivered") {
+        return json({ status: "approved", already_verified: true, already_delivered: true });
+      }
+
+      try {
+        await triggerDelivery(order_id);
+      } catch (deliveryError) {
+        const message = (deliveryError as Error).message;
+        await supabase.from("orders").update({
+          verification_notes: `Pago ya verificado. Entrega pendiente: ${message}`,
+        }).eq("id", order_id);
+        return json({ status: "approved", already_verified: true, delivery_failed: true, delivery_error: message });
+      }
+
+      return json({ status: "approved", already_verified: true });
+    }
 
     const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${payment_id}`, {
       headers: { Authorization: `Bearer ${MP_TOKEN}` },

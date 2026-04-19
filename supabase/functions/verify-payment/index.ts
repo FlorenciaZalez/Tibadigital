@@ -67,7 +67,23 @@ Deno.serve(async (req) => {
       .single();
 
     if (orderErr || !order) return json({ error: "Order not found" }, 404);
-    if (order.verification_status === "verified") return json({ status: "already_verified" });
+    if (order.verification_status === "verified") {
+      if (order.status === "delivered") {
+        return json({ status: "already_verified", already_delivered: true });
+      }
+
+      try {
+        await triggerDelivery(order_id);
+      } catch (deliveryError) {
+        const message = (deliveryError as Error).message;
+        await supabase.from("orders").update({
+          verification_notes: `Pago ya verificado. Entrega pendiente: ${message}`,
+        }).eq("id", order_id);
+        return json({ status: "already_verified", delivery_failed: true, delivery_error: message });
+      }
+
+      return json({ status: "already_verified" });
+    }
     if (!order.payment_proof_url) return json({ error: "No proof uploaded" }, 400);
 
     // Marcar como en verificación
