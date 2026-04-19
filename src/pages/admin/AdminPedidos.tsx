@@ -66,16 +66,16 @@ const AdminPedidos = () => {
 
   const approveManually = async (order: AdminOrder) => {
     if (!confirm(`Aprobar manualmente el pedido ${order.public_code} y entregar las keys?`)) return;
-    await supabase.from("orders").update({
-      status: "paid", verification_status: "verified",
-      verification_notes: "Aprobado manualmente por admin",
-    }).eq("id", order.id);
-    // Disparar entrega usando el entorno configurado del cliente actual.
-    const { error: fnError } = await supabase.functions.invoke("deliver-order", {
+    const { data, error: fnError } = await supabase.functions.invoke("approve-order-admin", {
       body: { order_id: order.id },
     });
-    if (!fnError) toast.success("Pedido aprobado y entregado");
-    else toast.error("Pedido aprobado pero la entrega falló. Revisá manualmente.");
+
+    if (!fnError && data?.ok) {
+      toast.success(data?.already_delivered ? "Ese pedido ya estaba entregado" : "Pedido aprobado y entregado");
+    } else {
+      toast.error(data?.error || fnError?.message || "Pedido aprobado pero la entrega falló. Revisá manualmente.");
+    }
+
     refresh();
   };
 
