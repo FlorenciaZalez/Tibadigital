@@ -132,7 +132,7 @@ const MisPedidos = () => {
   const retryDelivery = async (orderId: string) => {
     setRetryingFor(orderId);
     try {
-      const { data, error } = await supabase.functions.invoke("deliver-order", {
+      const { data, error } = await supabase.functions.invoke("retry-delivery", {
         body: { order_id: orderId },
       });
 
