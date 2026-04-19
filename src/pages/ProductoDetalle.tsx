@@ -6,8 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { getPricePresentation } from "@/lib/currency";
+import { getAccountTierLabel, inferAccountTier, inferPlatform, stripAccountTierFromGenre } from "@/lib/productVariants";
 
 interface ProductFull {
+  account_tier?: "general" | "primary" | "secondary";
   id: string;
   title: string;
   slug: string;
@@ -60,6 +62,8 @@ const ProductoDetalle = () => {
   const originalPriceView = getPricePresentation(Number(product.price), country);
   const finalPriceView = getPricePresentation(finalPrice, country);
   const installmentView = getPricePresentation(finalPrice / 12, country);
+  const accountTier = inferAccountTier(product);
+  const platform = inferPlatform(product);
 
   return (
     <div className="container py-10">
@@ -80,7 +84,7 @@ const ProductoDetalle = () => {
             )}
             <div className="absolute top-4 left-4">
               <span className="px-3 py-1.5 text-xs font-display font-bold tracking-wider rounded-md bg-background/80 backdrop-blur border border-secondary/50 text-secondary">
-                {product.platform}
+                {platform}
               </span>
             </div>
           </div>
@@ -103,7 +107,7 @@ const ProductoDetalle = () => {
         <div className="space-y-6">
           <div>
             <div className="text-xs uppercase tracking-[0.3em] text-secondary font-display mb-2">
-              {product.genre ?? "Videojuego"}
+              {[getAccountTierLabel(accountTier), stripAccountTierFromGenre(product.genre)].filter(Boolean).join(" · ") || "Videojuego"}
             </div>
             <h1 className="font-display font-black text-3xl md:text-5xl leading-tight">{product.title}</h1>
           </div>
@@ -153,9 +157,10 @@ const ProductoDetalle = () => {
           </div>
 
           {/* Specs */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {[
-              { Icon: Gamepad2, label: "Plataforma", value: product.platform },
+              { Icon: Gamepad2, label: "Plataforma", value: platform },
+              { Icon: Shield, label: "Cuenta", value: getAccountTierLabel(accountTier) },
               { Icon: Calendar, label: "Año", value: product.release_year ?? "—" },
             ].map(({ Icon, label, value }) => (
               <div key={label} className="card-cyber p-3 rounded-lg text-center">

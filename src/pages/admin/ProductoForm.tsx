@@ -9,13 +9,21 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { embedAccountTierInGenre, embedPlatformInGenre, getLegacyCompatiblePlatform, inferAccountTier, inferPlatform, isInvalidCombinedPlatformError, isMissingAccountTierColumnError, stripAccountTierFromGenre, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
 import { toast } from "sonner";
 
-const PLATFORMS = ["PS5", "PS4"];
+const PLATFORMS = ["PS5", "PS4", "PS4/PS5"];
+const ACCOUNT_TIERS = [
+  { value: "primary", label: "Primaria" },
+  { value: "secondary", label: "Secundaria" },
+];
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+
+const buildProductSlug = (title: string, platform: string, accountTier: string) =>
+  slugify([title, platform, accountTier].filter(Boolean).join(" "));
 
 const ProductoForm = () => {
   const { id } = useParams();
@@ -26,7 +34,7 @@ const ProductoForm = () => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     title: "", slug: "", description: "", price: "", discount_price: "", reseller_price: "",
-    stock: "1", platform: "PS5", genre: "", cover_url: "",
+    stock: "1", platform: "PS5", account_tier: "primary", genre: "", cover_url: "",
     release_year: "", featured: false, is_active: true,
   });
 
@@ -42,8 +50,9 @@ const ProductoForm = () => {
         discount_price: data.discount_price ? String(data.discount_price) : "",
         reseller_price: data.reseller_price ? String(data.reseller_price) : "",
         stock: String(data.stock),
-        platform: data.platform,
-        genre: data.genre ?? "",
+        platform: inferPlatform(data),
+        account_tier: inferAccountTier(data),
+        genre: stripAccountTierFromGenre(data.genre),
         cover_url: data.cover_url ?? "",
         release_year: data.release_year ? String(data.release_year) : "",
         featured: data.featured,
@@ -70,27 +79,42 @@ const ProductoForm = () => {
     setSaving(true);
     const payload = {
       title: form.title,
-      slug: slugify(form.title),
+      slug: buildProductSlug(form.title, form.platform, form.account_tier),
       description: form.description || null,
       price: Number(form.price),
       discount_price: form.discount_price ? Number(form.discount_price) : null,
       reseller_price: form.reseller_price ? Number(form.reseller_price) : null,
       stock: parseInt(form.stock) || 0,
       platform: form.platform as any,
-      genre: form.genre || null,
+      account_tier: form.account_tier as any,
+      genre: stripAccountTierFromGenre(form.genre) || null,
       cover_url: form.cover_url || null,
       release_year: form.release_year ? parseInt(form.release_year) : null,
       featured: form.featured,
       is_active: form.is_active,
     };
 
-    const { error } = isNew
+    let { error } = isNew
       ? await supabase.from("products").insert(payload)
       : await supabase.from("products").update(payload).eq("id", id!);
 
+    if (isMissingAccountTierColumnError(error) || isInvalidCombinedPlatformError(error)) {
+      const legacyPayload = {
+        ...payload,
+        platform: getLegacyCompatiblePlatform(form.platform as PlatformVariant),
+        genre: embedAccountTierInGenre(embedPlatformInGenre(form.genre, form.platform as PlatformVariant), form.account_tier as AccountTier),
+      } as typeof payload & { account_tier?: never };
+
+      delete (legacyPayload as { account_tier?: AccountTier }).account_tier;
+
+      ({ error } = isNew
+        ? await supabase.from("products").insert(legacyPayload)
+        : await supabase.from("products").update(legacyPayload).eq("id", id!));
+    }
+
     setSaving(false);
     if (error) {
-      toast.error(error.message.includes("duplicate") ? "Ya existe un producto con ese slug" : "Error al guardar");
+      toast.error(error.message.includes("duplicate") ? "Ya existe un producto con esa combinacion de titulo, plataforma y tipo" : `Error al guardar: ${error.message}`);
     } else {
       toast.success(isNew ? "Producto creado" : "Producto actualizado");
       navigate("/admin");
@@ -147,17 +171,25 @@ const ProductoForm = () => {
           <div>
             <Label htmlFor="title">Título *</Label>
             <Input id="title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="bg-input mt-1" />
+            <p className="text-xs text-muted-foreground mt-1">Slug final: {buildProductSlug(form.title || "nuevo-producto", form.platform, form.account_tier)}</p>
           </div>
           <div>
             <Label htmlFor="description">Descripción</Label>
             <Textarea id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="bg-input mt-1" rows={5} />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="platform">Plataforma *</Label>
               <Select value={form.platform} onValueChange={(v) => setForm({ ...form, platform: v })}>
                 <SelectTrigger className="bg-input mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>{PLATFORMS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="account_tier">Tipo de cuenta *</Label>
+              <Select value={form.account_tier} onValueChange={(v) => setForm({ ...form, account_tier: v })}>
+                <SelectTrigger className="bg-input mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>{ACCOUNT_TIERS.map((tier) => <SelectItem key={tier.value} value={tier.value}>{tier.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
@@ -169,6 +201,7 @@ const ProductoForm = () => {
               <Input id="release_year" type="number" value={form.release_year} onChange={(e) => setForm({ ...form, release_year: e.target.value })} className="bg-input mt-1" />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">Creá una publicación por combinación. Ejemplos: FC 26 + PS5 + Primaria, FC 26 + PS5 + Secundaria, FC 26 + PS4 + Primaria.</p>
         </div>
 
         {/* Pricing */}
@@ -199,8 +232,8 @@ const ProductoForm = () => {
         <div className="card-cyber p-6 rounded-xl space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="featured" className="text-base">Destacado</Label>
-              <p className="text-xs text-muted-foreground">Aparece en el home</p>
+              <Label htmlFor="featured" className="text-base">Oferta</Label>
+              <p className="text-xs text-muted-foreground">Aparece en la categoría Ofertas</p>
             </div>
             <Switch id="featured" checked={form.featured} onCheckedChange={(v) => setForm({ ...form, featured: v })} />
           </div>

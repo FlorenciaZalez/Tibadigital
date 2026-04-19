@@ -1,5 +1,7 @@
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
+import { extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -58,13 +60,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    let sheetsSyncSummary = "Google Sheets: no configurado";
+    const deliveredSourceCodes = deliveredItems
+      .flatMap(({ key }) => {
+        const sourceCode = key?.source_code ?? extractSourceCodeFromNotes(key?.notes);
+        return sourceCode ? [sourceCode] : [];
+      });
+
+    if (deliveredSourceCodes.length > 0 && isGoogleSheetsSyncConfigured()) {
+      try {
+        const syncResult = await syncGoogleSheetCheckboxes(deliveredSourceCodes);
+        sheetsSyncSummary = `Google Sheets: OK ${syncResult.updatedCodes.length}`;
+        if (syncResult.missingCodes.length > 0) {
+          sheetsSyncSummary += ` · faltantes ${syncResult.missingCodes.join(", ")}`;
+        }
+      } catch (syncError) {
+        sheetsSyncSummary = `Google Sheets: FAIL ${(syncError as Error).message}`;
+      }
+    } else if (deliveredSourceCodes.length === 0) {
+      sheetsSyncSummary = "Google Sheets: sin source_code";
+    }
+
     // Construir mensaje
     const itemsHtml = deliveredItems.map(({ title, key }) => {
       if (!key) return `<li><b>${escapeHtml(title)}</b>: ⏳ Sin stock disponible. Te contactamos en breve.</li>`;
       const content = key.key_type === "account"
         ? `<div style="margin-top:8px;white-space:pre-line;background:#171717;border-radius:8px;padding:10px 12px;">👤 ${escapeHtml(key.content)}</div>`
         : `<br/>🎮 <code style="background:#f3f3f3;padding:4px 8px;border-radius:4px;">${escapeHtml(key.content)}</code>`;
-      const notes = key.notes ? `<br/><small>${escapeHtml(key.notes)}</small>` : "";
+      const cleanNotes = stripSourceMetadata(key.notes);
+      const notes = cleanNotes ? `<br/><small>${escapeHtml(cleanNotes)}</small>` : "";
       return `<li><b>${escapeHtml(title)}</b>${content}${notes}</li>`;
     }).join("");
 
@@ -80,7 +104,7 @@ Deno.serve(async (req) => {
 </div></body></html>`;
 
     const textParts = deliveredItems.map(({ title, key }) =>
-      key ? `• ${title}: ${key.content}${key.notes ? " (" + key.notes + ")" : ""}` : `• ${title}: sin stock - te contactamos`
+      key ? `• ${title}: ${key.content}${stripSourceMetadata(key.notes) ? " (" + stripSourceMetadata(key.notes) + ")" : ""}` : `• ${title}: sin stock - te contactamos`
     ).join("\n");
     const text = `¡Pago confirmado! Pedido ${order.public_code}\n\n${textParts}\n\nGracias por elegir TIBADIGITAL.`;
 
@@ -134,7 +158,7 @@ Deno.serve(async (req) => {
 
     await supabase.from("orders").update({
       status: "delivered",
-      verification_notes: `Entregado. Email: ${emailSent ? "OK" : "FAIL " + emailError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"}`,
+      verification_notes: `Entregado. Email: ${emailSent ? "OK" : "FAIL " + emailError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"} · ${sheetsSyncSummary}`,
     }).eq("id", order_id);
 
     return json({ delivered: true, email_sent: emailSent, whatsapp_sent: waSent });

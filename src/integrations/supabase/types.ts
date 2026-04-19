@@ -162,6 +162,8 @@ export type Database = {
           notes: string | null
           product_id: string
           reserved_for_order_id: string | null
+          source_code: string | null
+          source_sheet: string | null
           status: Database["public"]["Enums"]["key_status"]
           updated_at: string
         }
@@ -175,6 +177,8 @@ export type Database = {
           notes?: string | null
           product_id: string
           reserved_for_order_id?: string | null
+          source_code?: string | null
+          source_sheet?: string | null
           status?: Database["public"]["Enums"]["key_status"]
           updated_at?: string
         }
@@ -188,6 +192,8 @@ export type Database = {
           notes?: string | null
           product_id?: string
           reserved_for_order_id?: string | null
+          source_code?: string | null
+          source_sheet?: string | null
           status?: Database["public"]["Enums"]["key_status"]
           updated_at?: string
         }
@@ -210,6 +216,7 @@ export type Database = {
       }
       products: {
         Row: {
+          account_tier: Database["public"]["Enums"]["account_tier"]
           cover_url: string | null
           created_at: string
           description: string | null
@@ -230,6 +237,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_tier?: Database["public"]["Enums"]["account_tier"]
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -250,6 +258,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_tier?: Database["public"]["Enums"]["account_tier"]
           cover_url?: string | null
           created_at?: string
           description?: string | null
@@ -375,11 +384,12 @@ export type Database = {
       }
     }
     Enums: {
+      account_tier: "general" | "primary" | "secondary"
       app_role: "admin" | "user"
       key_status: "available" | "reserved" | "delivered"
       key_type: "code" | "account" | "link"
       order_status: "pending" | "paid" | "shipped" | "delivered" | "cancelled"
-      platform: "PS5" | "PS4" | "PS3" | "PS2" | "PS1" | "PSP" | "PSVITA"
+      platform: "PS5" | "PS4" | "PS4/PS5" | "PS3" | "PS2" | "PS1" | "PSP" | "PSVITA"
       verification_status:
         | "not_submitted"
         | "awaiting_verification"
@@ -513,11 +523,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      account_tier: ["general", "primary", "secondary"],
       app_role: ["admin", "user"],
       key_status: ["available", "reserved", "delivered"],
       key_type: ["code", "account", "link"],
       order_status: ["pending", "paid", "shipped", "delivered", "cancelled"],
-      platform: ["PS5", "PS4", "PS3", "PS2", "PS1", "PSP", "PSVITA"],
+      platform: ["PS5", "PS4", "PS4/PS5", "PS3", "PS2", "PS1", "PSP", "PSVITA"],
       verification_status: [
         "not_submitted",
         "awaiting_verification",

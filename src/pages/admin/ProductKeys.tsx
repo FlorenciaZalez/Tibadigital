@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { stripSourceMetadata } from "@/lib/sourceMetadata";
 import { toast } from "sonner";
 
 interface Key {
@@ -205,7 +206,7 @@ const ProductKeys = () => {
                         {k.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3 text-xs text-muted-foreground">{k.notes || "—"}</td>
+                    <td className="p-3 text-xs text-muted-foreground">{stripSourceMetadata(k.notes) || "—"}</td>
                     <td className="p-3 text-right">
                       <Button size="icon" variant="ghost" onClick={() => remove(k.id, k.status)} className="hover:text-destructive">
                         <Trash2 className="h-4 w-4" />

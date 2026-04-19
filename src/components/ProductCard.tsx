@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { getPricePresentation } from "@/lib/currency";
+import { getAccountTierLabel, inferAccountTier, inferPlatform } from "@/lib/productVariants";
 
 export interface Product {
+  account_tier?: "general" | "primary" | "secondary";
+  genre?: string | null;
   id: string;
   title: string;
   slug: string;
@@ -27,6 +30,8 @@ export const ProductCard = ({ product }: { product: Product }) => {
     : 0;
   const basePriceView = getPricePresentation(Number(product.price), country);
   const finalPriceView = getPricePresentation(finalPrice, country);
+  const accountTier = inferAccountTier(product);
+  const platform = inferPlatform(product);
 
   return (
     <article className="card-cyber rounded-xl overflow-hidden group relative animate-fade-in">
@@ -50,8 +55,13 @@ export const ProductCard = ({ product }: { product: Product }) => {
         {/* Top badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
           <span className="px-2.5 py-1 text-[10px] font-display font-bold tracking-wider rounded-md bg-background/80 backdrop-blur border border-secondary/50 text-secondary">
-            {product.platform}
+            {platform}
           </span>
+          {accountTier && (
+            <span className="px-2.5 py-1 text-[10px] font-display font-bold tracking-wider rounded-md bg-background/80 backdrop-blur border border-primary/40 text-primary">
+              {getAccountTierLabel(accountTier)}
+            </span>
+          )}
           {hasDiscount && (
             <span className="px-2.5 py-1 text-[10px] font-display font-black tracking-wider rounded-md bg-gradient-cyber text-white shadow-[0_0_15px_hsl(var(--primary)/0.6)]">
               -{discountPct}%

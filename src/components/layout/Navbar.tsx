@@ -18,7 +18,7 @@ const catalogSubLinks = [
 ];
 
 const navLinks = [
-  { to: "/catalogo?featured=true", label: "Ofertas" },
+  { to: "/ofertas", label: "Ofertas" },
   { to: "/estrenos", label: "Estrenos y preventas" },
 ];
 

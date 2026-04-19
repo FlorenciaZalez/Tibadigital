@@ -137,18 +137,18 @@ const Index = () => {
         </div>
       </section>
 
-      {/* FEATURED */}
+      {/* OFFERS */}
       {featured.length > 0 && (
         <section className="container py-12">
           <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.3em] text-secondary mb-2 font-display">// Destacados</div>
+              <div className="text-xs uppercase tracking-[0.3em] text-secondary mb-2 font-display">// Ofertas</div>
               <h2 className="font-display font-black text-3xl md:text-5xl">
-                LO MÁS <span className="text-gradient-neon">BUSCADO</span>
+                OFERTAS <span className="text-gradient-neon">DESTACADAS</span>
               </h2>
             </div>
             <Button variant="neon" asChild>
-              <Link to="/catalogo">Ver todo<ArrowRight /></Link>
+              <Link to="/ofertas">Ver ofertas<ArrowRight /></Link>
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">

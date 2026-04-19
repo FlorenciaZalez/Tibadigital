@@ -25,7 +25,7 @@ export const Footer = () => (
           <li><Link to="/catalogo" className="hover:text-primary transition-colors">Catálogo</Link></li>
           <li><Link to="/catalogo?platform=PS5" className="hover:text-primary transition-colors">PlayStation 5</Link></li>
           <li><Link to="/catalogo?platform=PS4" className="hover:text-primary transition-colors">PlayStation 4</Link></li>
-          <li><Link to="/catalogo?featured=true" className="hover:text-primary transition-colors">Ofertas</Link></li>
+          <li><Link to="/ofertas" className="hover:text-primary transition-colors">Ofertas</Link></li>
         </ul>
       </div>
 

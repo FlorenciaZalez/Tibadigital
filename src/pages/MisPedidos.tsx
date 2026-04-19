@@ -4,6 +4,7 @@ import { Package, ChevronLeft, ShoppingBag, Upload, KeyRound, Copy, Loader2, Che
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { stripSourceMetadata } from "@/lib/sourceMetadata";
 import { toast } from "sonner";
 
 interface DeliveredKey {
@@ -266,7 +267,7 @@ const MisPedidos = () => {
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
-                        {k.notes && <p className="text-xs text-muted-foreground">{k.notes}</p>}
+                        {stripSourceMetadata(k.notes) && <p className="text-xs text-muted-foreground">{stripSourceMetadata(k.notes)}</p>}
                       </div>
                     ))}
                   </div>

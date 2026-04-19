@@ -1,27 +1,28 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard, type Product } from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { inferPlatform } from "@/lib/productVariants";
 
 const PLATFORMS = ["PS4", "PS5"];
 
 const Catalogo = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   const platform = searchParams.get("platform");
-  const featuredOnly = searchParams.get("featured") === "true";
+  const featuredOnly = searchParams.get("featured") === "true" || location.pathname === "/ofertas";
 
   useEffect(() => {
-    document.title = `Catálogo${platform ? ` ${platform}` : ""} | TIBADIGITAL`;
+    document.title = featuredOnly ? "Ofertas | TIBADIGITAL" : `Catálogo${platform ? ` ${platform}` : ""} | TIBADIGITAL`;
     setLoading(true);
     let q = supabase.from("products").select("*").eq("is_active", true);
-    if (platform) q = q.eq("platform", platform as any);
     if (featuredOnly) q = q.eq("featured", true);
     q.order("created_at", { ascending: false }).then(({ data }) => {
       if (data) setProducts(data as any);
@@ -30,6 +31,7 @@ const Catalogo = () => {
   }, [platform, featuredOnly]);
 
   const filtered = products.filter((p) =>
+    (!platform || [platform, "PS4/PS5"].includes(inferPlatform(p))) &&
     p.title.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -49,7 +51,7 @@ const Catalogo = () => {
           {platform ? (
             <>JUEGOS <span className="text-gradient-neon">{platform}</span></>
           ) : featuredOnly ? (
-            <>OFERTAS <span className="text-gradient-neon">DESTACADAS</span></>
+            <>NUESTRAS <span className="text-gradient-neon">OFERTAS</span></>
           ) : (
             <>TODO EL <span className="text-gradient-neon">CATÁLOGO</span></>
           )}

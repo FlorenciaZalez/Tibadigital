@@ -25,6 +25,7 @@ import Admin from "./pages/Admin.tsx";
 import ProductoForm from "./pages/admin/ProductoForm.tsx";
 import ProductKeys from "./pages/admin/ProductKeys.tsx";
 import AdminPedidos from "./pages/admin/AdminPedidos.tsx";
+import BulkAccountImport from "./pages/admin/BulkAccountImport.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
               <Route element={<Layout />}>
                 <Route path="/" element={<Index />} />
                 <Route path="/catalogo" element={<Catalogo />} />
+                <Route path="/ofertas" element={<Catalogo />} />
                 <Route path="/estrenos" element={<Estrenos />} />
                 <Route path="/ps-plus" element={<PsPlus />} />
                 <Route path="/secundarias" element={<Secundarias />} />
@@ -54,6 +56,7 @@ const App = () => (
                 <Route path="/cuenta/pedidos" element={<ProtectedRoute><MisPedidos /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
                 <Route path="/admin/pedidos" element={<ProtectedRoute adminOnly><AdminPedidos /></ProtectedRoute>} />
+                <Route path="/admin/importar-cuentas" element={<ProtectedRoute adminOnly><BulkAccountImport /></ProtectedRoute>} />
                 <Route path="/admin/producto/:id" element={<ProtectedRoute adminOnly><ProductoForm /></ProtectedRoute>} />
                 <Route path="/admin/producto/:id/keys" element={<ProtectedRoute adminOnly><ProductKeys /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />

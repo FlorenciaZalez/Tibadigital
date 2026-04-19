@@ -3,6 +3,7 @@ import { Filter } from "lucide-react";
 import { ProductCard, type Product } from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { inferAccountTier } from "@/lib/productVariants";
 
 const Secundarias = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -16,10 +17,9 @@ const Secundarias = () => {
       .from("products")
       .select("*")
       .eq("is_active", true)
-      .ilike("genre", "%secundaria%")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
-        if (data) setProducts(data as any);
+        if (data) setProducts((data as any[]).filter((product) => inferAccountTier(product) === "secondary") as any);
         setLoading(false);
       });
   }, []);

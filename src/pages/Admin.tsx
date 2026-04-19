@@ -6,9 +6,12 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getStoredExchangeRates, saveExchangeRates } from "@/lib/currency";
+import { getAccountTierLabel, inferAccountTier, inferPlatform } from "@/lib/productVariants";
 import { toast } from "sonner";
 
 interface AdminProduct {
+  account_tier?: "general" | "primary" | "secondary";
+  genre?: string | null;
   id: string;
   title: string;
   slug: string;
@@ -20,6 +23,8 @@ interface AdminProduct {
   cover_url: string | null;
   featured: boolean;
 }
+
+const OFFER_LABEL = "Oferta";
 
 const formatPrice = (n: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
@@ -51,7 +56,41 @@ const Admin = () => {
   };
 
   const toggleActive = async (id: string, current: boolean) => {
-    await supabase.from("products").update({ is_active: !current }).eq("id", id);
+    const { error } = await supabase.from("products").update({ is_active: !current }).eq("id", id);
+    if (error) {
+      toast.error(`No pudimos actualizar la visibilidad: ${error.message}`);
+      return;
+    }
+    refresh();
+  };
+
+  const toggleFeatured = async (id: string, current: boolean) => {
+    const { error } = await supabase.from("products").update({ featured: !current }).eq("id", id);
+    if (error) {
+      toast.error(`No pudimos actualizar la oferta: ${error.message}`);
+      return;
+    }
+    refresh();
+  };
+
+  const setOfferProductsVisibility = async (visible: boolean) => {
+    const offerProducts = products.filter((product) => product.featured);
+    if (offerProducts.length === 0) {
+      toast.error("No hay productos en oferta para actualizar");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("products")
+      .update({ is_active: visible })
+      .in("id", offerProducts.map((product) => product.id));
+
+    if (error) {
+      toast.error(`No pudimos actualizar las ofertas: ${error.message}`);
+      return;
+    }
+
+    toast.success(visible ? "Ofertas visibles nuevamente" : "Ofertas ocultas del catálogo");
     refresh();
   };
 
@@ -83,7 +122,10 @@ const Admin = () => {
           </h1>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => setOfferProductsVisibility(true)}>Mostrar ofertas</Button>
+          <Button variant="outline" onClick={() => setOfferProductsVisibility(false)}>Ocultar ofertas</Button>
           <Button variant="outline" asChild><Link to="/admin/pedidos"><ClipboardList />Pedidos / Pagos</Link></Button>
+          <Button variant="outline" asChild><Link to="/admin/importar-cuentas"><Upload />Importar cuentas</Link></Button>
           <Button variant="hero" asChild><Link to="/admin/producto/nuevo"><Plus />Nuevo producto</Link></Button>
         </div>
       </div>
@@ -148,10 +190,11 @@ const Admin = () => {
               <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="text-left p-3">Producto</th>
-                  <th className="text-left p-3">Plataforma</th>
+                  <th className="text-left p-3">Variante</th>
                   <th className="text-right p-3">Precio</th>
                   <th className="text-right p-3">Stock</th>
-                  <th className="text-center p-3">Estado</th>
+                  <th className="text-center p-3">Visible</th>
+                  <th className="text-center p-3">{OFFER_LABEL}</th>
                   <th className="text-right p-3">Acciones</th>
                 </tr>
               </thead>
@@ -165,16 +208,24 @@ const Admin = () => {
                         </div>
                         <div>
                           <div className="font-semibold">{p.title}</div>
-                          {p.featured && <span className="text-[10px] text-primary font-display tracking-wider">★ DESTACADO</span>}
+                          {p.featured && <span className="text-[10px] text-primary font-display tracking-wider">★ EN OFERTA</span>}
                         </div>
                       </div>
                     </td>
-                    <td className="p-3"><span className="text-secondary font-display text-xs">{p.platform}</span></td>
+                    <td className="p-3">
+                      <div className="text-secondary font-display text-xs">{inferPlatform(p)}</div>
+                      <div className="text-[11px] text-muted-foreground">{getAccountTierLabel(inferAccountTier(p))}</div>
+                    </td>
                     <td className="p-3 text-right font-semibold">{formatPrice(Number(p.discount_price ?? p.price))}</td>
                     <td className="p-3 text-right">{p.stock}</td>
                     <td className="p-3 text-center">
                       <button onClick={() => toggleActive(p.id, p.is_active)} className={`px-2 py-0.5 rounded text-[10px] font-display tracking-wider ${p.is_active ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"}`}>
                         {p.is_active ? "ACTIVO" : "OCULTO"}
+                      </button>
+                    </td>
+                    <td className="p-3 text-center">
+                      <button onClick={() => toggleFeatured(p.id, p.featured)} className={`px-2 py-0.5 rounded text-[10px] font-display tracking-wider ${p.featured ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                        {p.featured ? "EN OFERTA" : "NORMAL"}
                       </button>
                     </td>
                     <td className="p-3 text-right">
