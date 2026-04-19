@@ -43,12 +43,12 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ ok: false, error: "No auth" }, 401);
+    if (!authHeader) return json({ ok: false, error: "No auth" });
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
     const token = authHeader.replace("Bearer ", "").trim();
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) return json({ ok: false, error: "Invalid auth" }, 401);
+    if (userErr || !user) return json({ ok: false, error: "Invalid auth: " + (userErr?.message ?? "no user") });
 
     const { data: roleRow } = await supabase
       .from("user_roles")
@@ -57,10 +57,10 @@ Deno.serve(async (req) => {
       .eq("role", "admin")
       .maybeSingle();
 
-    if (!roleRow) return json({ ok: false, error: "Forbidden" }, 403);
+    if (!roleRow) return json({ ok: false, error: "No tenés permisos de admin" });
 
     const { order_id } = await req.json();
-    if (!order_id) return json({ ok: false, error: "order_id required" }, 400);
+    if (!order_id) return json({ ok: false, error: "order_id required" });
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       .eq("id", order_id)
       .single();
 
-    if (orderErr || !order) return json({ ok: false, error: "Order not found" }, 404);
+    if (orderErr || !order) return json({ ok: false, error: "Pedido no encontrado" });
 
     if (order.status !== "delivered") {
       await supabase.from("orders").update({
@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, already_delivered: order.status === "delivered" });
   } catch (e) {
-    return json({ ok: false, error: (e as Error).message }, 500);
+    console.error("approve-order-admin error:", e);
+    return json({ ok: false, error: (e as Error).message });
   }
 });
 

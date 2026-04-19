@@ -1,5 +1,8 @@
 project_id = "ywvudwfpayweajajxxcv"
 
+[functions.approve-order-admin]
+verify_jwt = false
+
 [functions.deliver-order]
 verify_jwt = false
 
