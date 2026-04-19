@@ -211,6 +211,19 @@ const buildAccountContent = (row: CsvRow) => {
   const explicitContent = getFirstValue(row, ["content", "contenido"]);
   if (explicitContent) return explicitContent;
 
+  const orderedValues = [
+    getFirstValue(row, ["codigo"]),
+    getFirstValue(row, ["product_title", "titulo", "title", "juego", "producto", "nombre"]),
+    getFirstValue(row, ["correo", "email", "mail", "usuario", "user", "username"]),
+    getFirstValue(row, ["contrasena", "clave", "password", "pass"]),
+    getFirstValue(row, ["p_s", "ps", "categoria", "tipo_cuenta"]).toUpperCase(),
+    getFirstValue(row, ["consola", "platform", "plataforma"]).toUpperCase(),
+  ].filter(Boolean);
+
+  if (orderedValues.length >= 4) {
+    return orderedValues.join("\t");
+  }
+
   const ignoredFields = new Set([
     "product_slug",
     "slug",

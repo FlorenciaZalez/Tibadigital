@@ -178,6 +178,7 @@ const MisPedidos = () => {
             const uploading = uploadingFor === order.id;
             const retrying = retryingFor === order.id;
             const needsDeliveryRetry = order.verification_status === "verified" && order.status === "paid" && orderKeys.length === 0;
+            const needsGoogleSheetsRetry = order.status === "delivered" && Boolean(order.verification_notes?.includes("Google Sheets: sin source_code") || order.verification_notes?.includes("Google Sheets: FAIL") || order.verification_notes?.includes("faltantes"));
 
             return (
               <div key={order.id} className="card-cyber rounded-xl p-5 space-y-4">
@@ -269,11 +270,15 @@ const MisPedidos = () => {
                     {order.verification_notes && !verifying && (
                       <p className="text-xs text-muted-foreground mt-1 italic">{order.verification_notes}</p>
                     )}
-                    {needsDeliveryRetry && (
+                    {(needsDeliveryRetry || needsGoogleSheetsRetry) && (
                       <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-3">
-                        <p className="text-sm text-warning font-display">Pago verificado, pero la entrega no terminó. Reintentá desde acá.</p>
+                        <p className="text-sm text-warning font-display">
+                          {needsDeliveryRetry
+                            ? "Pago verificado, pero la entrega no terminó. Reintentá desde acá."
+                            : "La entrega salió, pero el sync con Google Sheets no terminó. Reintentá desde acá."}
+                        </p>
                         <Button onClick={() => retryDelivery(order.id)} variant="outline" disabled={retrying}>
-                          {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando entrega...</> : <><KeyRound className="h-4 w-4" />Reintentar entrega</>}
+                          {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando...</> : <><KeyRound className="h-4 w-4" />{needsDeliveryRetry ? "Reintentar entrega" : "Reintentar sync Google Sheets"}</>}
                         </Button>
                       </div>
                     )}

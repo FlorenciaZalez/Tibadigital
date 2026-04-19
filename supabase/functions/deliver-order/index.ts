@@ -1,7 +1,7 @@
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
-import { extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
+import { extractSourceCodeFromContent, extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +13,37 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
 const TWILIO_FROM = Deno.env.get("TWILIO_WHATSAPP_FROM"); // ej: whatsapp:+14155238886
+
+const replaceGoogleSheetsSummary = (notes: string | null | undefined, summary: string) => {
+  const cleanNotes = (notes ?? "").replace(/\s*·\s*Google Sheets:.*$/i, "").trim();
+  return cleanNotes ? `${cleanNotes} · ${summary}` : summary;
+};
+
+const syncVisibleStock = async (supabase: ReturnType<typeof createClient>, productIds: string[]) => {
+  const uniqueProductIds = Array.from(new Set(productIds.filter(Boolean)));
+  if (uniqueProductIds.length === 0) return;
+
+  const { data: keyRows, error: keyError } = await supabase
+    .from("product_keys")
+    .select("product_id")
+    .in("product_id", uniqueProductIds)
+    .eq("status", "available");
+
+  if (keyError) throw keyError;
+
+  const counts = new Map<string, number>();
+  uniqueProductIds.forEach((productId) => counts.set(productId, 0));
+  keyRows?.forEach((row) => counts.set(row.product_id, (counts.get(row.product_id) ?? 0) + 1));
+
+  for (const productId of uniqueProductIds) {
+    const { error } = await supabase
+      .from("products")
+      .update({ stock: counts.get(productId) ?? 0 })
+      .eq("id", productId);
+
+    if (error) throw error;
+  }
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -36,10 +67,6 @@ Deno.serve(async (req) => {
       if (user.id !== order.user_id) return json({ error: "Forbidden" }, 403);
     }
 
-    if (order.status === "delivered") {
-      return json({ delivered: true, already_delivered: true });
-    }
-
     // Email del usuario
     const { data: userData } = await supabase.auth.admin.getUserById(order.user_id);
     const email = userData?.user?.email ?? null;
@@ -47,28 +74,44 @@ Deno.serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles").select("full_name, whatsapp").eq("user_id", order.user_id).single();
 
-    // Reservar y obtener una key disponible por cada item
+    // Reservar y obtener una key disponible por cada item, o reutilizar las ya entregadas para reintentos de sync.
     const deliveredItems: { title: string; key: any }[] = [];
-    for (const item of order.order_items) {
-      for (let i = 0; i < item.quantity; i++) {
-        const { data: avail } = await supabase
-          .from("product_keys")
-          .select("*")
-          .eq("product_id", item.product_id)
-          .eq("status", "available")
-          .limit(1)
-          .maybeSingle();
+    if (order.status === "delivered") {
+      const { data: deliveredKeys, error: deliveredKeysError } = await supabase
+        .from("product_keys")
+        .select("*")
+        .eq("reserved_for_order_id", order_id)
+        .eq("status", "delivered")
+        .order("delivered_at", { ascending: true });
 
-        if (avail) {
-          await supabase.from("product_keys").update({
-            status: "delivered",
-            reserved_for_order_id: order_id,
-            delivered_to_user_id: order.user_id,
-            delivered_at: new Date().toISOString(),
-          }).eq("id", avail.id);
-          deliveredItems.push({ title: item.product_title, key: avail });
-        } else {
-          deliveredItems.push({ title: item.product_title, key: null });
+      if (deliveredKeysError) return json({ error: deliveredKeysError.message }, 500);
+
+      const fallbackTitle = order.order_items[0]?.product_title ?? "Producto";
+      (deliveredKeys ?? []).forEach((key) => {
+        deliveredItems.push({ title: fallbackTitle, key });
+      });
+    } else {
+      for (const item of order.order_items) {
+        for (let i = 0; i < item.quantity; i++) {
+          const { data: avail } = await supabase
+            .from("product_keys")
+            .select("*")
+            .eq("product_id", item.product_id)
+            .eq("status", "available")
+            .limit(1)
+            .maybeSingle();
+
+          if (avail) {
+            await supabase.from("product_keys").update({
+              status: "delivered",
+              reserved_for_order_id: order_id,
+              delivered_to_user_id: order.user_id,
+              delivered_at: new Date().toISOString(),
+            }).eq("id", avail.id);
+            deliveredItems.push({ title: item.product_title, key: avail });
+          } else {
+            deliveredItems.push({ title: item.product_title, key: null });
+          }
         }
       }
     }
@@ -76,7 +119,7 @@ Deno.serve(async (req) => {
     let sheetsSyncSummary = "Google Sheets: no configurado";
     const deliveredSourceCodes = deliveredItems
       .flatMap(({ key }) => {
-        const sourceCode = key?.source_code ?? extractSourceCodeFromNotes(key?.notes);
+        const sourceCode = key?.source_code ?? extractSourceCodeFromNotes(key?.notes) ?? extractSourceCodeFromContent(key?.content);
         return sourceCode ? [sourceCode] : [];
       });
 
@@ -93,6 +136,16 @@ Deno.serve(async (req) => {
     } else if (deliveredSourceCodes.length === 0) {
       sheetsSyncSummary = "Google Sheets: sin source_code";
     }
+
+    if (order.status === "delivered") {
+      await supabase.from("orders").update({
+        verification_notes: replaceGoogleSheetsSummary(order.verification_notes, sheetsSyncSummary),
+      }).eq("id", order_id);
+
+      return json({ delivered: true, already_delivered: true, google_sheets: sheetsSyncSummary });
+    }
+
+    await syncVisibleStock(supabase, order.order_items.map((item: { product_id: string }) => item.product_id));
 
     // Construir mensaje
     const itemsHtml = deliveredItems.map(({ title, key }) => {
