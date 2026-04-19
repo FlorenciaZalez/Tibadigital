@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Package, ChevronLeft, ShoppingBag, Upload, KeyRound, Copy, Loader2, CheckCircle2, AlertCircle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatDeliveredAccountContent } from "@/lib/accountContent";
+import { formatDeliveredAccountContent, parseAccountFields } from "@/lib/accountContent";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { stripSourceMetadata } from "@/lib/sourceMetadata";
@@ -303,17 +303,36 @@ const MisPedidos = () => {
                               })
                             : k.content;
 
+                          const isAccount = k.key_type === "account";
+                          const fields = isAccount ? parseAccountFields(formattedContent) : [];
+
                           return (
                             <>
                         <div className="text-xs font-display uppercase tracking-wider text-secondary">
-                          {k.key_type === "code" ? "Codigo" : "Cuenta"}
+                          {isAccount ? "Cuenta" : "Codigo"}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className="font-mono text-sm bg-background/50 px-2 py-1 rounded flex-1 whitespace-pre-line break-all">{formattedContent}</div>
-                          <Button size="icon" variant="ghost" onClick={() => copy(formattedContent)}>
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {isAccount && fields.length > 1 ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {fields.map((f, i) => (
+                                <div key={i} className="bg-background/50 rounded px-3 py-2">
+                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-display">{f.label}</div>
+                                  <div className="font-mono text-sm break-all">{f.value}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <Button size="sm" variant="ghost" onClick={() => copy(fields.filter(f => ["Email", "Contraseña"].includes(f.label)).map(f => `${f.label}: ${f.value}`).join("\n") || formattedContent)} className="text-xs">
+                              <Copy className="h-3 w-3 mr-1" />Copiar credenciales
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="font-mono text-sm bg-background/50 px-2 py-1 rounded flex-1 whitespace-pre-line break-all">{formattedContent}</div>
+                            <Button size="icon" variant="ghost" onClick={() => copy(formattedContent)}>
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                         {stripSourceMetadata(k.notes) && <p className="text-xs text-muted-foreground">{stripSourceMetadata(k.notes)}</p>}
                             </>
                           );
