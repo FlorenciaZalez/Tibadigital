@@ -13,15 +13,15 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No auth" }, 401);
+    if (!authHeader) return json({ ok: false, error: "No auth" });
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
-    if (userErr || !user) return json({ error: "Invalid auth" }, 401);
+    if (userErr || !user) return json({ ok: false, error: "Invalid auth" });
 
     const { order_id } = await req.json();
-    if (!order_id) return json({ error: "order_id required" }, 400);
+    if (!order_id) return json({ ok: false, error: "order_id required" });
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id)
       .single();
 
-    if (orderErr || !order) return json({ error: "Order not found" }, 404);
+    if (orderErr || !order) return json({ ok: false, error: "Order not found" });
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
       method: "POST",
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true, ...payload });
   } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+    return json({ ok: false, error: (e as Error).message });
   }
 });
 
