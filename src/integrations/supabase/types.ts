@@ -226,6 +226,8 @@ export type Database = {
           genre: string | null
           id: string
           is_active: boolean
+          is_estreno: boolean
+          is_ps_plus: boolean
           platform: Database["public"]["Enums"]["platform"]
           price: number
           publisher: string | null
@@ -247,6 +249,8 @@ export type Database = {
           genre?: string | null
           id?: string
           is_active?: boolean
+          is_estreno?: boolean
+          is_ps_plus?: boolean
           platform?: Database["public"]["Enums"]["platform"]
           price: number
           publisher?: string | null
@@ -268,6 +272,8 @@ export type Database = {
           genre?: string | null
           id?: string
           is_active?: boolean
+          is_estreno?: boolean
+          is_ps_plus?: boolean
           platform?: Database["public"]["Enums"]["platform"]
           price?: number
           publisher?: string | null

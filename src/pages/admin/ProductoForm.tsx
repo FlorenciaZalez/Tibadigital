@@ -46,7 +46,7 @@ const ProductoForm = () => {
     title: "", slug: "", description: "", price: "", discount_price: "", reseller_price: "",
     markup_pct: "",
     stock: "1", platform: "PS5", account_tier: "primary", genre: "", cover_url: "",
-    release_year: "", featured: false, is_active: true,
+    release_year: "", featured: false, is_estreno: false, is_ps_plus: false, is_active: true,
   });
 
   useEffect(() => {
@@ -75,6 +75,8 @@ const ProductoForm = () => {
         cover_url: data.cover_url ?? "",
         release_year: data.release_year ? String(data.release_year) : "",
         featured: data.featured,
+        is_estreno: data.is_estreno ?? false,
+        is_ps_plus: data.is_ps_plus ?? false,
         is_active: data.is_active,
       });
       }
@@ -119,6 +121,8 @@ const ProductoForm = () => {
       cover_url: form.cover_url || null,
       release_year: form.release_year ? parseInt(form.release_year) : null,
       featured: form.featured,
+      is_estreno: form.is_estreno,
+      is_ps_plus: form.is_ps_plus,
       is_active: form.is_active,
     };
 
@@ -281,6 +285,20 @@ const ProductoForm = () => {
               <p className="text-xs text-muted-foreground">Aparece en la categoría Ofertas</p>
             </div>
             <Switch id="featured" checked={form.featured} onCheckedChange={(v) => setForm({ ...form, featured: v })} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="is_estreno" className="text-base">Estrenos y preventas</Label>
+              <p className="text-xs text-muted-foreground">Aparece en la categoría Estrenos y Preventas</p>
+            </div>
+            <Switch id="is_estreno" checked={form.is_estreno} onCheckedChange={(v) => setForm({ ...form, is_estreno: v })} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="is_ps_plus" className="text-base">PlayStation Plus</Label>
+              <p className="text-xs text-muted-foreground">Aparece en la categoría PlayStation Plus</p>
+            </div>
+            <Switch id="is_ps_plus" checked={form.is_ps_plus} onCheckedChange={(v) => setForm({ ...form, is_ps_plus: v })} />
           </div>
           <div className="flex items-center justify-between">
             <div>

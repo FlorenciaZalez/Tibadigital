@@ -16,7 +16,7 @@ const PsPlus = () => {
       .from("products")
       .select("*")
       .eq("is_active", true)
-      .ilike("genre", "%plus%")
+      .eq("is_ps_plus", true)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) setProducts(data as any);

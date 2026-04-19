@@ -16,6 +16,7 @@ const Estrenos = () => {
       .from("products")
       .select("*")
       .eq("is_active", true)
+      .eq("is_estreno", true)
       .order("release_year", { ascending: false })
       .order("created_at", { ascending: false })
       .then(({ data }) => {
