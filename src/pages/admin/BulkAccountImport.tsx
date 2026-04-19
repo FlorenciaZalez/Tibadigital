@@ -206,6 +206,15 @@ const isAvailableStatus = (value: string) => {
   return ["disponible", "available", "stock", "ok"].includes(current);
 };
 
+const isMissingSourceCodeColumnError = (message: string | undefined) => {
+  const normalizedMessage = message?.toLowerCase() ?? "";
+  return normalizedMessage.includes("source_code") && (
+    normalizedMessage.includes("does not exist") ||
+    normalizedMessage.includes("schema cache") ||
+    normalizedMessage.includes("could not find")
+  );
+};
+
 const buildDuplicateKey = (productId: string, content: string) =>
   `${productId}::${content.trim().toLowerCase()}`;
 
@@ -516,7 +525,7 @@ const BulkAccountImport = () => {
 
     let { error } = await supabase.from("product_keys").insert(payload);
 
-    if (error?.message?.toLowerCase().includes("source_code") && error.message.toLowerCase().includes("does not exist")) {
+    if (isMissingSourceCodeColumnError(error?.message)) {
       const legacyPayload = payload.map((row) => ({
         product_id: row.product_id,
         key_type: row.key_type,
