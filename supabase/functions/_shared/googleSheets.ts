@@ -23,8 +23,22 @@ export const isGoogleSheetsSyncConfigured = () => {
   return Boolean(env.serviceAccountEmail && env.privateKey && env.spreadsheetId && env.sheetName);
 };
 
+const normalizeSourceCode = (value: string | null | undefined) =>
+  (value ?? "")
+    .trim()
+    .replace(/^'+/, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+
 export const syncGoogleSheetCheckboxes = async (sourceCodes: string[]) => {
-  const uniqueCodes = Array.from(new Set(sourceCodes.map((code) => code.trim()).filter(Boolean)));
+  const codeEntries = sourceCodes
+    .map((code) => ({ original: code.trim(), normalized: normalizeSourceCode(code) }))
+    .filter((entry) => entry.original && entry.normalized);
+
+  const uniqueCodes = Array.from(
+    new Map(codeEntries.map((entry) => [entry.normalized, entry.original])).entries(),
+  ).map(([normalized, original]) => ({ normalized, original }));
+
   if (uniqueCodes.length === 0) return { updatedCodes: [], missingCodes: [] };
 
   const env = getEnv();
@@ -43,17 +57,19 @@ export const syncGoogleSheetCheckboxes = async (sourceCodes: string[]) => {
 
   const rowByCode = new Map<string, number>();
   values.forEach((row, index) => {
-    const code = (row[0] ?? "").trim();
+    const code = normalizeSourceCode(row[0] ?? "");
     if (code && !rowByCode.has(code)) {
       rowByCode.set(code, index + 2);
     }
   });
 
   const matchedRows = uniqueCodes
-    .map((code) => ({ code, row: rowByCode.get(code) }))
-    .filter((entry): entry is { code: string; row: number } => Boolean(entry.row));
+    .map((entry) => ({ ...entry, row: rowByCode.get(entry.normalized) }))
+    .filter((entry): entry is { normalized: string; original: string; row: number } => Boolean(entry.row));
 
-  const missingCodes = uniqueCodes.filter((code) => !rowByCode.has(code));
+  const missingCodes = uniqueCodes
+    .filter((entry) => !rowByCode.has(entry.normalized))
+    .map((entry) => entry.original);
 
   if (matchedRows.length > 0) {
     await updateCheckboxCells({
@@ -65,7 +81,7 @@ export const syncGoogleSheetCheckboxes = async (sourceCodes: string[]) => {
     });
   }
 
-  return { updatedCodes: matchedRows.map((entry) => entry.code), missingCodes };
+  return { updatedCodes: matchedRows.map((entry) => entry.original), missingCodes };
 };
 
 const getSheetValues = async ({
