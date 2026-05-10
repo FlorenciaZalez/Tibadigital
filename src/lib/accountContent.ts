@@ -61,6 +61,6 @@ export const parseAccountFields = (formatted: string): { label: string; value: s
   const parts = formatted.split("\t").map((p) => p.trim()).filter(Boolean);
   if (parts.length < 4) return [{ label: "Datos", value: formatted }];
 
-  const labels = ["Código", "Juego", "Email", "Contraseña", "Tipo", "Consola"];
+  const labels = ["Cuenta", "Juego", "Email", "Contraseña", "Tipo", "Consola"];
   return parts.map((value, i) => ({ label: labels[i] ?? `Campo ${i + 1}`, value }));
 };

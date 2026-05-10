@@ -1,8 +1,9 @@
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { formatDeliveredAccountContent } from "../_shared/accountContent.ts";
+import { formatDeliveredAccountContent, parseAccountFields } from "../_shared/accountContent.ts";
 import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
 import { extractSourceCodeFromContent, extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
+import { buildDeliveryEmailHtml, buildDeliveryEmailText, type DeliveryEmailItem, type DeliveryEmailTemplateData } from "../../../shared/deliveryEmailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,11 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+const STORE_NAME = Deno.env.get("STORE_NAME") ?? "TIBADIGITAL";
+const PUBLIC_SITE_URL = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
+const EMAIL_LOGO_URL = Deno.env.get("EMAIL_LOGO_URL") ?? (PUBLIC_SITE_URL ? `${PUBLIC_SITE_URL}/logo.png` : null);
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "TIBADIGITAL <onboarding@resend.dev>";
+const EMAIL_REPLY_TO = Deno.env.get("EMAIL_REPLY_TO");
 const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
 const TWILIO_FROM = Deno.env.get("TWILIO_WHATSAPP_FROM"); // ej: whatsapp:+14155238886
 
@@ -19,6 +25,12 @@ const replaceGoogleSheetsSummary = (notes: string | null | undefined, summary: s
   const cleanNotes = (notes ?? "").replace(/\s*·\s*Google Sheets:.*$/i, "").trim();
   return cleanNotes ? `${cleanNotes} · ${summary}` : summary;
 };
+
+const formatOrderDate = (value: string) => new Intl.DateTimeFormat("es-AR", {
+  dateStyle: "long",
+  timeStyle: "short",
+  timeZone: "America/Argentina/Buenos_Aires",
+}).format(new Date(value));
 
 const syncVisibleStock = async (supabase: ReturnType<typeof createClient>, productIds: string[]) => {
   const uniqueProductIds = Array.from(new Set(productIds.filter(Boolean)));
@@ -157,41 +169,56 @@ Deno.serve(async (req) => {
 
     await syncVisibleStock(supabase, order.order_items.map((item: { product_id: string }) => item.product_id));
 
-    // Construir mensaje
-    const itemsHtml = deliveredItems.map(({ title, key }) => {
-      if (!key) return `<li><b>${escapeHtml(title)}</b>: ⏳ Sin stock disponible. Te contactamos en breve.</li>`;
-      const displayContent = key.key_type === "account"
-        ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
-        : key.content;
-      const content = key.key_type === "account"
-        ? `<div style="margin-top:8px;white-space:pre-line;background:#171717;border-radius:8px;padding:10px 12px;">👤 ${escapeHtml(displayContent)}</div>`
-        : `<br/>🎮 <code style="background:#f3f3f3;padding:4px 8px;border-radius:4px;">${escapeHtml(displayContent)}</code>`;
+    const emailOrderCode = order.public_code ?? order.id.slice(0, 8).toUpperCase();
+    const emailItems: DeliveryEmailItem[] = deliveredItems.map(({ title, key }) => {
+      if (!key) {
+        return {
+          kind: "out_of_stock",
+          title,
+          notes: "Sin stock disponible por el momento. Te contactamos en breve para resolverlo.",
+        };
+      }
+
       const cleanNotes = stripSourceMetadata(key.notes);
-      const notes = cleanNotes ? `<br/><small>${escapeHtml(cleanNotes)}</small>` : "";
-      return `<li><b>${escapeHtml(title)}</b>${content}${notes}</li>`;
-    }).join("");
-
-    const html = `
-<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#0a0a0a;color:#fff;padding:20px;">
-<div style="max-width:600px;margin:0 auto;background:#111;border:1px solid #ff00aa;border-radius:12px;padding:30px;">
-  <h1 style="color:#ff00aa;font-size:28px;margin:0 0 10px;">¡Pago confirmado! 🎮</h1>
-  <p style="color:#00ffff;margin:0 0 20px;">Pedido <b>${order.public_code}</b></p>
-  <p>Hola${profile?.full_name ? " " + escapeHtml(profile.full_name) : ""}, recibimos tu pago. Acá están tus juegos:</p>
-  <ul style="line-height:1.8;color:#fff;">${itemsHtml}</ul>
-  <hr style="border:none;border-top:1px solid #333;margin:20px 0;"/>
-  <p style="color:#888;font-size:12px;">Cualquier consulta, respondé este email. ¡Gracias por elegir TIBADIGITAL!</p>
-</div></body></html>`;
-
-    const textParts = deliveredItems.map(({ title, key }) => {
-      if (!key) return `• ${title}: sin stock - te contactamos`;
-
       const displayContent = key.key_type === "account"
         ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
         : key.content;
 
-      return `• ${title}: ${displayContent}${stripSourceMetadata(key.notes) ? " (" + stripSourceMetadata(key.notes) + ")" : ""}`;
-    }).join("\n");
-    const text = `¡Pago confirmado! Pedido ${order.public_code}\n\n${textParts}\n\nGracias por elegir TIBADIGITAL.`;
+      if (key.key_type === "account") {
+        return {
+          kind: "account",
+          title,
+          fields: parseAccountFields(displayContent),
+          notes: cleanNotes,
+        };
+      }
+
+      return {
+        kind: "key",
+        title,
+        value: displayContent,
+        notes: cleanNotes,
+      };
+    });
+
+    const emailContent: DeliveryEmailTemplateData = {
+      storeName: STORE_NAME,
+      logoUrl: EMAIL_LOGO_URL,
+      orderCode: emailOrderCode,
+      createdAtLabel: formatOrderDate(order.created_at),
+      paymentMethodLabel: order.payment_method ?? "No informado",
+      totalLabel: formatCurrency(Number(order.total ?? 0)),
+      customerName: profile?.full_name ?? null,
+      itemsSummary: order.order_items.map((item: { product_title: string; quantity: number; unit_price: number }) => ({
+        title: item.product_title,
+        quantity: item.quantity,
+        totalLabel: formatCurrency(Number(item.unit_price) * item.quantity),
+      })),
+      deliveredItems: emailItems,
+    };
+
+    const html = buildDeliveryEmailHtml(emailContent);
+    const text = buildDeliveryEmailText(emailContent);
 
     // Enviar email via Lovable AI Gateway → Resend-compatible (usamos directamente Resend si hubiera, o registramos)
     // Como no hay aún email infra, lo registramos y mandamos por console; queda preparado para Lovable Email
@@ -203,13 +230,22 @@ Deno.serve(async (req) => {
       if (!email) {
         emailError = "No email for user";
       } else if (RESEND) {
+        const emailPayload: Record<string, unknown> = {
+          from: EMAIL_FROM,
+          to: [email],
+          subject: `🎮 Tu pedido ${order.public_code} está listo`,
+          html,
+          text,
+        };
+
+        if (EMAIL_REPLY_TO) {
+          emailPayload.reply_to = EMAIL_REPLY_TO;
+        }
+
         const r = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { Authorization: `Bearer ${RESEND}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: "TIBADIGITAL <onboarding@resend.dev>",
-            to: [email], subject: `🎮 Tu pedido ${order.public_code} está listo`, html, text,
-          }),
+          body: JSON.stringify(emailPayload),
         });
         emailSent = r.ok;
         if (!r.ok) emailError = await r.text();
@@ -258,5 +294,6 @@ Deno.serve(async (req) => {
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
-function escapeHtml(s: string) { return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)); }
-function escapeAttr(s: string) { return escapeHtml(s); }
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
+}

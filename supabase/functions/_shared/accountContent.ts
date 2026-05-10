@@ -55,3 +55,11 @@ export const formatDeliveredAccountContent = ({
 
   return normalized.length >= 4 ? normalized.join("\t") : rawContent;
 };
+
+export const parseAccountFields = (formatted: string): { label: string; value: string }[] => {
+  const parts = formatted.split("\t").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 4) return [{ label: "Datos", value: formatted }];
+
+  const labels = ["Cuenta", "Juego", "Email", "Contrasena", "Tipo", "Consola"];
+  return parts.map((value, index) => ({ label: labels[index] ?? `Campo ${index + 1}`, value }));
+};

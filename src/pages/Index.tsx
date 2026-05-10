@@ -71,9 +71,9 @@ const Index = () => {
         <div className="container py-8 md:py-10">
           <div className="grid w-full grid-cols-1 gap-8 text-center sm:grid-cols-3 sm:gap-6 md:gap-12">
             {[
-              { num: "1000+", label: "Juegos" },
-              { num: "10K+", label: "Gamers" },
-              { num: "24/7", label: "Soporte" },
+              { num: "40000+", label: "Juegos Vendidos" },
+              { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
+              { num: "+6 años", label: "siendo proveedores" },
             ].map((s) => (
               <div key={s.label} className="flex flex-col items-center justify-center space-y-1">
                 <div className="font-display font-black text-2xl md:text-3xl text-gradient-neon">{s.num}</div>
@@ -129,7 +129,7 @@ const Index = () => {
                   {p}
                 </div>
                 <div className="text-xs uppercase tracking-widest text-muted-foreground mt-3">
-                  Ver juegos
+                  {p === "Playstation Plus" ? "Ver membresias" : "Ver juegos"}
                 </div>
               </div>
             </Link>

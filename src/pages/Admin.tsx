@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Edit, Trash2, Package, ShoppingBag, Users, KeyRound, ClipboardList, Save, Upload } from "lucide-react";
+import { Plus, Edit, Trash2, Package, ShoppingBag, Users, KeyRound, ClipboardList, Save, Upload, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
@@ -126,6 +126,7 @@ const Admin = () => {
           <Button variant="outline" onClick={() => setOfferProductsVisibility(false)}>Ocultar ofertas</Button>
           <Button variant="outline" asChild><Link to="/admin/pedidos"><ClipboardList />Pedidos / Pagos</Link></Button>
           <Button variant="outline" asChild><Link to="/admin/importar-cuentas"><Upload />Importar cuentas</Link></Button>
+          <Button variant="outline" asChild><Link to="/admin/email-preview"><Mail />Preview email</Link></Button>
           <Button variant="hero" asChild><Link to="/admin/producto/nuevo"><Plus />Nuevo producto</Link></Button>
         </div>
       </div>
