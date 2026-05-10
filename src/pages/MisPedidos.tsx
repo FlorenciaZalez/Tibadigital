@@ -141,7 +141,13 @@ const MisPedidos = () => {
       if (data?.ok === false) throw new Error(data.error);
       if (data?.error) throw new Error(data.error);
 
-      toast.success(data?.already_delivered ? "Ese pedido ya estaba entregado" : "Entrega reintentada con éxito");
+      toast.success(
+        data?.already_delivered && data?.email_sent
+          ? "Email reenviado con éxito"
+          : data?.already_delivered
+            ? "Ese pedido ya estaba entregado"
+            : "Entrega reintentada con éxito"
+      );
       await refresh();
     } catch (e: any) {
       toast.error(`No pudimos reintentar la entrega: ${e.message}`);
@@ -254,7 +260,7 @@ const MisPedidos = () => {
                       </p>
                     </div>
                     <Button asChild variant="hero" size="lg" className="w-full">
-                      <Link to={`/checkout/mercadopago/${order.id}`}>
+                      <Link to={`/checkout/mercadopago/${order.id}`} target="_blank" rel="noopener noreferrer">
                         <CreditCard className="h-4 w-4" />Continuar pago con Mercado Pago
                       </Link>
                     </Button>

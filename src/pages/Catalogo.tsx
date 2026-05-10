@@ -22,7 +22,7 @@ const Catalogo = () => {
   useEffect(() => {
     document.title = featuredOnly ? "Ofertas | TIBADIGITAL" : `Catálogo${platform ? ` ${platform}` : ""} | TIBADIGITAL`;
     setLoading(true);
-    let q = supabase.from("products").select("*").eq("is_active", true);
+    let q = supabase.from("products").select("*").eq("is_active", true).gt("stock", 0);
     if (featuredOnly) q = q.eq("featured", true);
     q.order("created_at", { ascending: false }).then(({ data }) => {
       if (data) setProducts(data as any);

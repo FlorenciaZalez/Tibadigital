@@ -17,8 +17,8 @@ const Index = () => {
     if (meta) meta.setAttribute("content", "Comprá juegos de PlayStation 5, PS4 y más. Envíos rápidos, mejores precios y la mejor experiencia gamer en TIBADIGITAL.");
 
     Promise.all([
-      supabase.from("products").select("*").eq("featured", true).eq("is_active", true).limit(8),
-      supabase.from("products").select("*").eq("is_active", true).order("created_at", { ascending: false }).limit(4),
+      supabase.from("products").select("*").eq("featured", true).eq("is_active", true).gt("stock", 0).limit(8),
+      supabase.from("products").select("*").eq("is_active", true).gt("stock", 0).order("created_at", { ascending: false }).limit(4),
     ]).then(([f, l]) => {
       if (f.data) setFeatured(f.data as any);
       if (l.data) setLatest(l.data as any);

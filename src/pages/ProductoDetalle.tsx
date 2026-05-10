@@ -36,7 +36,7 @@ const ProductoDetalle = () => {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).maybeSingle().then(({ data }) => {
+    supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).gt("stock", 0).maybeSingle().then(({ data }) => {
       if (data) {
         setProduct(data as any);
         setActiveImg(data.cover_url ?? "");

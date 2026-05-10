@@ -58,8 +58,9 @@ const Checkout = () => {
     await clearCart();
 
     if (method === "mercadopago") {
-      toast.success("Pedido creado", { description: "Te llevamos al pago seguro de Mercado Pago." });
-      navigate(`/checkout/mercadopago/${order.id}`);
+      window.open(`/checkout/mercadopago/${order.id}`, "_blank", "noopener,noreferrer");
+      toast.success("Pedido creado", { description: "Abrimos Mercado Pago en una nueva pestaña para que no salgas de la web." });
+      navigate(`/cuenta/pedidos`);
       setSubmitting(false);
       return;
     }

@@ -17,6 +17,7 @@ const Secundarias = () => {
       .from("products")
       .select("*")
       .eq("is_active", true)
+      .gt("stock", 0)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) setProducts((data as any[]).filter((product) => inferAccountTier(product) === "secondary") as any);
