@@ -211,17 +211,17 @@ const Catalogo = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-8">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-8">
         <Input
           placeholder="Buscar juego..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs bg-card border-border focus-visible:ring-primary"
+          className="w-full sm:max-w-xs bg-card border-border focus-visible:ring-primary"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[180px] justify-between border-border bg-card text-sm font-medium hover:bg-card/80">
+              <Button variant="outline" className="w-full sm:w-[180px] justify-between border-border bg-card text-sm font-medium hover:bg-card/80">
                 <span>{platformLabel}</span>
                 <ChevronDown className="h-4 w-4 opacity-60" />
               </Button>
@@ -236,7 +236,7 @@ const Catalogo = () => {
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[220px] justify-between border-border bg-card text-sm font-medium hover:bg-card/80">
+              <Button variant="outline" className="w-full sm:w-[220px] justify-between border-border bg-card text-sm font-medium hover:bg-card/80">
                 <span>Filtrar por</span>
                 <ChevronDown className="h-4 w-4 opacity-60" />
               </Button>
@@ -306,7 +306,7 @@ const Catalogo = () => {
 
       {/* Grid */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-[3/4] rounded-xl bg-muted animate-pulse" />
           ))}
@@ -324,7 +324,7 @@ const Catalogo = () => {
               {sort === "alpha-asc" ? "Orden: A-Z" : sort === "alpha-desc" ? "Orden: Z-A" : "Orden: recientes"}
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </>

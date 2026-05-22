@@ -97,10 +97,10 @@ const MercadoPagoResult = () => {
         </h1>
         <p className="text-muted-foreground">{message}</p>
 
-        <div className="flex items-center justify-center gap-3 flex-wrap">
-          <Button asChild variant="hero"><Link to="/cuenta/pedidos">Ir a mis pedidos</Link></Button>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+          <Button asChild variant="hero" className="w-full sm:w-auto"><Link to="/cuenta/pedidos">Ir a mis pedidos</Link></Button>
           {state !== "approved" && (
-            <Button asChild variant="outline"><Link to="/catalogo">Volver al catalogo</Link></Button>
+            <Button asChild variant="outline" className="w-full sm:w-auto"><Link to="/catalogo">Volver al catalogo</Link></Button>
           )}
         </div>
       </div>

@@ -110,8 +110,8 @@ const Index = () => {
               Soporte 24/7, entrega rápida y una experiencia pensada para jugadores reales.
             </p>
 
-            <div className="flex flex-wrap gap-4 pt-2">
-              <Button size="xl" variant="hero" asChild>
+            <div className="flex flex-col sm:flex-row gap-4 pt-2">
+              <Button size="xl" variant="hero" className="w-full sm:w-auto" asChild>
                 <Link to="/catalogo">
                   Explorar catálogo
                   <ArrowRight className="ml-1" />
@@ -122,17 +122,26 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="bg-background border-t border-border/20">
-        <div className="container py-8 md:py-10">
-          <div className="grid w-full grid-cols-1 gap-8 text-center sm:grid-cols-3 sm:gap-6 md:gap-12">
+      <section className="bg-background border-t border-border/20 overflow-hidden">
+        <div
+          className="py-7"
+          style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}
+        >
+          <div className="flex animate-marquee will-change-transform w-max">
             {[
               { num: "40000+", label: "Juegos Vendidos" },
               { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
               { num: "+6 años", label: "siendo proveedores" },
-            ].map((s) => (
-              <div key={s.label} className="flex flex-col items-center justify-center space-y-1">
-                <div className="font-display font-black text-2xl md:text-3xl text-gradient-neon">{s.num}</div>
-                <div className="text-xs uppercase tracking-widest text-muted-foreground">{s.label}</div>
+              { num: "40000+", label: "Juegos Vendidos" },
+              { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
+              { num: "+6 años", label: "siendo proveedores" },
+            ].map((s, i) => (
+              <div key={i} className="flex items-center flex-shrink-0">
+                <div className="flex flex-col items-center justify-center space-y-0.5 px-12 text-center">
+                  <div className="font-display font-black text-2xl md:text-3xl text-gradient-neon whitespace-nowrap">{s.num}</div>
+                  <div className="text-xs uppercase tracking-widest text-muted-foreground whitespace-nowrap">{s.label}</div>
+                </div>
+                <span className="text-primary/40 text-base select-none flex-shrink-0">✶</span>
               </div>
             ))}
           </div>
@@ -140,22 +149,31 @@ const Index = () => {
       </section>
 
       {/* BENEFITS BAR */}
-      <section className="border-y border-border/40 bg-card/30 backdrop-blur">
-        <div className="container py-6">
-          <div className="grid grid-cols-1 gap-6 text-center md:grid-cols-3 md:gap-8">
+      <section className="border-y border-border/40 bg-card/30 backdrop-blur overflow-hidden">
+        <div
+          className="py-5"
+          style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}
+        >
+          <div className="flex animate-marquee will-change-transform w-max" style={{ animationDuration: "18s" }}>
             {[
               { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
               { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
               { Icon: Sparkles, title: "Mejores precios", desc: "Ofertas actualizadas" },
-            ].map(({ Icon, title, desc }) => (
-              <div key={title} className="flex w-full items-center justify-center gap-3 group">
-                <div className="w-10 h-10 rounded-lg bg-gradient-cyber/20 border border-primary/30 flex items-center justify-center text-primary group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.5)] transition-all">
-                  <Icon className="h-5 w-5" />
+              { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
+              { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
+              { Icon: Sparkles, title: "Mejores precios", desc: "Ofertas actualizadas" },
+            ].map(({ Icon, title, desc }, i) => (
+              <div key={i} className="flex items-center flex-shrink-0">
+                <div className="flex items-center gap-3 px-12">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-cyber/20 border border-primary/30 flex items-center justify-center text-primary flex-shrink-0">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-display font-bold text-sm uppercase tracking-wide whitespace-nowrap">{title}</div>
+                    <div className="text-xs text-muted-foreground whitespace-nowrap">{desc}</div>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <div className="font-display font-bold text-sm uppercase tracking-wide">{title}</div>
-                  <div className="text-xs text-muted-foreground">{desc}</div>
-                </div>
+                <span className="text-secondary/40 text-base select-none flex-shrink-0">✶</span>
               </div>
             ))}
           </div>
@@ -202,11 +220,11 @@ const Index = () => {
                 OFERTAS <span className="text-gradient-neon">DESTACADAS</span>
               </h2>
             </div>
-            <Button variant="neon" asChild>
+            <Button variant="neon" className="w-full sm:w-auto" asChild>
               <Link to="/ofertas">Ver ofertas<ArrowRight /></Link>
             </Button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {featured.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
@@ -223,7 +241,7 @@ const Index = () => {
               </h2>
             </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {latest.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
@@ -285,8 +303,8 @@ const Index = () => {
             <p className="text-muted-foreground text-lg">
               Creá tu cuenta y empezá a coleccionar los mejores juegos. Ofertas exclusivas para miembros.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Button size="lg" variant="cyan" asChild>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button size="lg" variant="cyan" className="w-full sm:w-auto" asChild>
                 <Link to="/catalogo">Ver catálogo</Link>
               </Button>
             </div>

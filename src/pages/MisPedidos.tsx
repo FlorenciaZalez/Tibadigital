@@ -172,7 +172,7 @@ const MisPedidos = () => {
           <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
           <h2 className="font-display font-bold text-xl">Aún no tenés pedidos</h2>
           <p className="text-muted-foreground">Empezá a explorar el catálogo y armá tu primer pedido.</p>
-          <Button variant="hero" asChild><Link to="/catalogo">Ver catálogo</Link></Button>
+          <Button variant="hero" className="w-full sm:w-auto" asChild><Link to="/catalogo">Ver catálogo</Link></Button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -284,7 +284,7 @@ const MisPedidos = () => {
                             ? "Pago verificado, pero la entrega no terminó. Reintentá desde acá."
                             : "La entrega salió, pero el sync con Google Sheets no terminó. Reintentá desde acá."}
                         </p>
-                        <Button onClick={() => retryDelivery(order.id)} variant="outline" disabled={retrying}>
+                        <Button onClick={() => retryDelivery(order.id)} variant="outline" className="w-full sm:w-auto" disabled={retrying}>
                           {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando...</> : <><KeyRound className="h-4 w-4" />{needsDeliveryRetry ? "Reintentar entrega" : "Reintentar sync Google Sheets"}</>}
                         </Button>
                       </div>

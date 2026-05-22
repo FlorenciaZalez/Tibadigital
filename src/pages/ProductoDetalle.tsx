@@ -52,7 +52,7 @@ const ProductoDetalle = () => {
   if (!product) return (
     <div className="container py-20 text-center space-y-4">
       <h1 className="font-display text-3xl">Producto no encontrado</h1>
-      <Button variant="neon" asChild><Link to="/catalogo">Volver al catálogo</Link></Button>
+      <Button variant="neon" className="w-full sm:w-auto" asChild><Link to="/catalogo">Volver al catálogo</Link></Button>
     </div>
   );
 

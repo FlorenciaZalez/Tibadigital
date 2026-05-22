@@ -43,12 +43,12 @@ const Secundarias = () => {
           placeholder="Buscar juego..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs bg-card border-border focus-visible:ring-primary"
+          className="w-full sm:max-w-xs bg-card border-border focus-visible:ring-primary"
         />
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="aspect-[3/4] rounded-xl bg-muted animate-pulse" />
           ))}
@@ -61,7 +61,7 @@ const Secundarias = () => {
       ) : (
         <>
           <div className="text-sm text-muted-foreground mb-4">{filtered.length} juego{filtered.length !== 1 && "s"}</div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         </>

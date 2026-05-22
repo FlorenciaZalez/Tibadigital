@@ -21,7 +21,7 @@ const Carrito = () => {
         <ShoppingBag className="h-16 w-16 mx-auto text-primary opacity-60" />
         <h1 className="font-display font-black text-3xl">Tu carrito está esperando</h1>
         <p className="text-muted-foreground">Iniciá sesión para ver tu carrito y completar tu compra.</p>
-        <Button variant="hero" size="lg" asChild><Link to="/auth">Iniciar sesión</Link></Button>
+        <Button variant="hero" size="lg" className="w-full" asChild><Link to="/auth">Iniciar sesión</Link></Button>
       </div>
     );
   }
@@ -32,7 +32,7 @@ const Carrito = () => {
         <ShoppingBag className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
         <h1 className="font-display font-black text-3xl">Tu carrito está vacío</h1>
         <p className="text-muted-foreground">Explorá el catálogo y agregá tus juegos favoritos.</p>
-        <Button variant="hero" size="lg" asChild>
+        <Button variant="hero" size="lg" className="w-full" asChild>
           <Link to="/catalogo">Ver catálogo<ArrowRight /></Link>
         </Button>
       </div>

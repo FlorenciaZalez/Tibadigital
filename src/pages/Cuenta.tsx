@@ -123,7 +123,7 @@ const Cuenta = () => {
             </Select>
           </div>
         </div>
-        <Button type="submit" variant="hero" disabled={saving}>
+        <Button type="submit" variant="hero" className="w-full sm:w-auto" disabled={saving}>
           <Save />{saving ? "Guardando..." : "Guardar cambios"}
         </Button>
       </form>

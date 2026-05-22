@@ -99,7 +99,7 @@ const MercadoPagoCheckout = () => {
         <div className="card-cyber rounded-xl p-8 text-center space-y-4">
           <h1 className="font-display font-black text-3xl">Mercado Pago no configurado</h1>
           <p className="text-muted-foreground">Falta la variable VITE_MERCADOPAGO_PUBLIC_KEY en el frontend.</p>
-          <Button asChild variant="hero"><Link to="/cuenta/pedidos">Volver a mis pedidos</Link></Button>
+          <Button asChild variant="hero" className="w-full"><Link to="/cuenta/pedidos">Volver a mis pedidos</Link></Button>
         </div>
       </div>
     );
@@ -138,7 +138,7 @@ const MercadoPagoCheckout = () => {
           ) : order?.verification_status === "verified" ? (
             <div className="rounded-xl border border-success/30 bg-success/10 p-6 text-center space-y-3">
               <div className="font-display font-bold text-success">Este pedido ya fue pagado</div>
-              <Button asChild variant="hero"><Link to="/cuenta/pedidos">Ver mis pedidos</Link></Button>
+              <Button asChild variant="hero" className="w-full"><Link to="/cuenta/pedidos">Ver mis pedidos</Link></Button>
             </div>
           ) : preferenceId ? (
             <div className="rounded-xl border border-border p-4 bg-background/40">
@@ -158,7 +158,7 @@ const MercadoPagoCheckout = () => {
           ) : (
             <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-center space-y-3">
               <div className="font-display font-bold">No pudimos generar la preferencia de pago</div>
-              <Button onClick={() => window.location.reload()} variant="hero">Reintentar</Button>
+              <Button onClick={() => window.location.reload()} variant="hero" className="w-full">Reintentar</Button>
             </div>
           )}
         </section>
