@@ -154,7 +154,7 @@ const Index = () => {
           className="py-5"
           style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}
         >
-          <div className="flex animate-marquee will-change-transform w-max" style={{ animationDuration: "18s" }}>
+          <div className="flex animate-marquee-reverse will-change-transform w-max">
             {[
               { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
               { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
