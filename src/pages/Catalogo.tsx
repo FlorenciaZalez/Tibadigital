@@ -226,7 +226,7 @@ const Catalogo = () => {
                 <ChevronDown className="h-4 w-4 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align="start" style={{ width: "var(--radix-popper-anchor-width)" }}>
               {PLATFORM_OPTIONS.map((option) => (
                 <DropdownMenuItem key={option.value} onClick={() => setParam("platform", option.value === "all" ? null : option.value)}>
                   {option.value === "all" ? "Ambas consolas" : option.label}
@@ -241,7 +241,7 @@ const Catalogo = () => {
                 <ChevronDown className="h-4 w-4 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[220px]">
+            <DropdownMenuContent align="start" style={{ width: "var(--radix-popper-anchor-width)" }}>
               {FILTER_OPTIONS.filter((option) => option.value !== "all").map((option) => (
                 <DropdownMenuCheckboxItem
                   key={option.value}

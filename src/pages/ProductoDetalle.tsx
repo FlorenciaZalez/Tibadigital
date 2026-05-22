@@ -130,8 +130,8 @@ const ProductoDetalle = () => {
               {finalPriceView.secondary && <div>{finalPriceView.secondary}</div>}
             </div>
 
-            <div className="flex items-center gap-3 pt-3">
-              <div className="flex items-center border border-border rounded-md">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-3">
+              <div className="flex items-center border border-border rounded-md w-fit">
                 <button onClick={() => setQty(Math.max(1, qty - 1))} className="px-3 py-2 hover:text-primary transition-colors">−</button>
                 <span className="px-4 font-display font-bold">{qty}</span>
                 <button onClick={() => setQty(Math.min(product.stock, qty + 1))} className="px-3 py-2 hover:text-primary transition-colors">+</button>
