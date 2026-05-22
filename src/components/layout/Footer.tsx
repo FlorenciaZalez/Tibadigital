@@ -11,7 +11,7 @@ export const Footer = () => (
           La tienda gamer #1 en juegos de PlayStation. Calidad, velocidad y los mejores precios.
         </p>
         <div className="flex gap-3">
-          {[Instagram, Twitter, Youtube, Gamepad2].map((Icon, i) => (
+          {[Instagram, Gamepad2].map((Icon, i) => (
             <a key={i} href="#" className="w-9 h-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary hover:shadow-[0_0_15px_hsl(var(--primary)/0.5)] transition-all">
               <Icon className="h-4 w-4" />
             </a>

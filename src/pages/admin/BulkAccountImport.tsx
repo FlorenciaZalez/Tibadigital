@@ -5,6 +5,7 @@ import { ChevronLeft, FileSpreadsheet, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { getAccountTierLabel, inferAccountTier, inferPlatform, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
 import { addSourceCodeToNotes } from "@/lib/sourceMetadata";
 import { toast } from "sonner";
@@ -28,7 +29,7 @@ interface PreviewRow {
   product_slug: string;
   product_title: string;
   platform: PlatformVariant | "";
-  accountTier: "primary" | "secondary" | "";
+  accountTier: AccountTier | "";
   key_type: "account" | "code";
   content: string;
   notes: string;
@@ -64,8 +65,21 @@ const POSITIONAL_COLUMNS = [
   "notes",
 ];
 
+const SOURCE_CODE_ALIASES = ["codigo", "code", "cod", "sku", "codigo_producto", "codigo_juego"];
+const PRODUCT_TITLE_ALIASES = ["product_title", "titulo", "title", "juego", "producto", "nombre", "nombre_juego"];
+const EMAIL_ALIASES = ["correo", "correo_electronico", "email", "mail", "usuario", "user", "username"];
+const PASSWORD_ALIASES = ["contrasena", "clave", "password", "pass"];
+const ACCOUNT_TIER_ALIASES = ["p_s", "tipo_cuenta", "categoria"];
+const PLATFORM_ALIASES = ["consola", "platform", "plataforma", "consola_plataforma", "plataforma_consola"];
+const STATUS_ALIASES = ["estado", "status", "disponibilidad"];
+
 const KNOWN_HEADERS = new Set([
   "codigo",
+  "cod",
+  "code",
+  "sku",
+  "codigo_producto",
+  "codigo_juego",
   "product_slug",
   "slug",
   "product_title",
@@ -74,10 +88,12 @@ const KNOWN_HEADERS = new Set([
   "juego",
   "producto",
   "nombre",
+  "nombre_juego",
   "usuario",
   "user",
   "username",
   "correo",
+  "correo_electronico",
   "email",
   "mail",
   "contrasena",
@@ -91,8 +107,11 @@ const KNOWN_HEADERS = new Set([
   "consola",
   "platform",
   "plataforma",
+  "plataforma_consola",
+  "consola_plataforma",
   "estado",
   "status",
+  "disponibilidad",
   "notes",
   "nota",
   "notas",
@@ -152,13 +171,38 @@ const parseCsvRows = (csvText: string) => {
   return { rows: matrixRows.map(mapMatrixRowToObject), error: null };
 };
 
+const getValueFromMatchingKeys = (row: CsvRow, aliases: string[]) => {
+  for (const alias of aliases) {
+    const normalizedAlias = normalizeHeader(alias);
+    if (!normalizedAlias || normalizedAlias.length < 3) continue;
+
+    const matchedEntry = Object.entries(row).find(([key, value]) => {
+      const normalizedKey = normalizeHeader(key);
+      if (!normalizedKey || !value?.trim()) return false;
+
+      return (
+        normalizedKey === normalizedAlias ||
+        normalizedKey.startsWith(`${normalizedAlias}_`) ||
+        normalizedKey.endsWith(`_${normalizedAlias}`) ||
+        normalizedKey.includes(normalizedAlias)
+      );
+    });
+
+    if (matchedEntry?.[1]?.trim()) {
+      return matchedEntry[1].trim();
+    }
+  }
+
+  return "";
+};
+
 const getFirstValue = (row: CsvRow, aliases: string[]) => {
   for (const alias of aliases) {
     const value = row[alias]?.trim();
     if (value) return value;
   }
 
-  return "";
+  return getValueFromMatchingKeys(row, aliases);
 };
 
 const humanizeField = (key: string) => {
@@ -187,14 +231,42 @@ const parsePlatform = (value: string) => {
   const current = normalize(value);
   if (!current) return "";
   if ((current.includes("ps4") && current.includes("ps5")) || current.includes("ps4/ps5")) return "PS4/PS5" as const;
+  if ((current.includes("play 4") && current.includes("play 5")) || current.includes("play 4/play 5")) return "PS4/PS5" as const;
   if (current.includes("ps5")) return "PS5" as const;
+  if (current.includes("play 5")) return "PS5" as const;
   if (current.includes("ps4")) return "PS4" as const;
+  if (current.includes("play 4")) return "PS4" as const;
+  return "";
+};
+
+const resolvePlatform = ({
+  explicitPlatform,
+  productSlug,
+  productTitle,
+  content,
+  accountTier,
+}: {
+  explicitPlatform: string;
+  productSlug: string;
+  productTitle: string;
+  content: string;
+  accountTier: AccountTier | "";
+}) => {
+  const parsedExplicitPlatform = parsePlatform(explicitPlatform);
+  if (parsedExplicitPlatform) return parsedExplicitPlatform;
+
+  const inferredPlatform = parsePlatform([productSlug, productTitle, content].filter(Boolean).join(" "));
+  if (inferredPlatform) return inferredPlatform;
+
+  if (accountTier === "secondary") return "PS4/PS5" as const;
+
   return "";
 };
 
 const parseAccountTier = (value: string) => {
   const current = normalize(value);
   if (!current) return "";
+  if (current.includes("plus")) return "plus" as const;
   if (current.includes("prim")) return "primary" as const;
   if (current.includes("sec")) return "secondary" as const;
   return "";
@@ -218,17 +290,28 @@ const isMissingSourceCodeColumnError = (message: string | undefined) => {
 const buildDuplicateKey = (productId: string, content: string) =>
   `${productId}::${content.trim().toLowerCase()}`;
 
+const inferSourceCode = (row: CsvRow) => {
+  const explicitCode = getFirstValue(row, SOURCE_CODE_ALIASES);
+  if (explicitCode) return explicitCode;
+
+  const patternMatch = Object.values(row)
+    .map((value) => value?.trim() ?? "")
+    .find((value) => /^[A-Z]{1,4}\d{2,6}$/i.test(value));
+
+  return patternMatch ?? "";
+};
+
 const buildAccountContent = (row: CsvRow) => {
   const explicitContent = getFirstValue(row, ["content", "contenido"]);
   if (explicitContent) return explicitContent;
 
   const orderedValues = [
-    getFirstValue(row, ["codigo"]),
-    getFirstValue(row, ["product_title", "titulo", "title", "juego", "producto", "nombre"]),
-    getFirstValue(row, ["correo", "email", "mail", "usuario", "user", "username"]),
-    getFirstValue(row, ["contrasena", "clave", "password", "pass"]),
-    getFirstValue(row, ["p_s", "ps", "categoria", "tipo_cuenta"]).toUpperCase(),
-    getFirstValue(row, ["consola", "platform", "plataforma"]).toUpperCase(),
+    inferSourceCode(row),
+    getFirstValue(row, PRODUCT_TITLE_ALIASES),
+    getFirstValue(row, EMAIL_ALIASES),
+    getFirstValue(row, PASSWORD_ALIASES),
+    getFirstValue(row, ACCOUNT_TIER_ALIASES).toUpperCase(),
+    getFirstValue(row, PLATFORM_ALIASES).toUpperCase(),
   ].filter(Boolean);
 
   if (orderedValues.length >= 4) {
@@ -273,12 +356,12 @@ const buildAccountContent = (row: CsvRow) => {
   return lines.join("\n");
 };
 
-const buildNotes = (row: CsvRow, platform: PlatformVariant | "", accountTier: "primary" | "secondary" | "") => {
+const buildNotes = (row: CsvRow, platform: PlatformVariant | "", accountTier: AccountTier | "") => {
   const explicitNotes = getFirstValue(row, ["notes", "nota", "notas", "observaciones", "comentarios"]);
   if (explicitNotes) return explicitNotes;
 
   const parts = [
-    getFirstValue(row, ["codigo"]),
+    inferSourceCode(row),
     accountTier ? getAccountTierLabel(accountTier) : "",
     platform,
   ].filter(Boolean);
@@ -297,7 +380,7 @@ const matchProduct = ({
   productSlug: string;
   productTitle: string;
   platform: PlatformVariant | "";
-  accountTier: "primary" | "secondary" | "";
+  accountTier: AccountTier | "";
 }) => {
   const slugMatch = productSlug ? products.filter((product) => normalize(product.slug) === normalize(productSlug)) : [];
   const titleMatch = productTitle
@@ -327,7 +410,7 @@ const matchProduct = ({
   if (accountTier && tierCandidates.length === 0) {
     return {
       matchedProduct: null,
-      error: `No existe ${productTitle || productSlug} ${accountTier === "primary" ? "primaria" : "secundaria"} en ${platform || "la consola indicada"}`,
+      error: `No existe ${productTitle || productSlug} ${getAccountTierLabel(accountTier)} en ${platform || "la consola indicada"}`,
     };
   }
 
@@ -350,7 +433,7 @@ const matchProduct = ({
   return { matchedProduct: null, error: "No encontramos un producto unico para esa fila" };
 };
 
-const BulkAccountImport = () => {
+const BulkAccountImport = ({ embedded = false }: { embedded?: boolean }) => {
   const [csvText, setCsvText] = useState("");
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -394,14 +477,20 @@ const BulkAccountImport = () => {
 
     const nextPreview = rows.map((rawRow, index) => {
       const productSlug = getFirstValue(rawRow, ["product_slug", "slug"]);
-      const productTitle = getFirstValue(rawRow, ["product_title", "titulo", "title", "juego", "producto", "nombre"]);
-      const accountTier = parseAccountTier(getFirstValue(rawRow, ["p_s", "ps", "categoria", "tipo_cuenta"]));
-      const platform = parsePlatform(getFirstValue(rawRow, ["consola", "platform", "plataforma"])) || (accountTier === "secondary" ? "PS4/PS5" : "");
+      const productTitle = getFirstValue(rawRow, PRODUCT_TITLE_ALIASES);
+      const accountTier = parseAccountTier(getFirstValue(rawRow, ACCOUNT_TIER_ALIASES));
       const keyType = getFirstValue(rawRow, ["key_type"]).toLowerCase() === "code" ? "code" : "account";
       const content = buildAccountContent(rawRow);
+      const platform = resolvePlatform({
+        explicitPlatform: getFirstValue(rawRow, PLATFORM_ALIASES),
+        productSlug,
+        productTitle,
+        content,
+        accountTier,
+      });
       const notes = buildNotes(rawRow, platform, accountTier);
-      const sourceCode = getFirstValue(rawRow, ["codigo"]);
-      const status = getFirstValue(rawRow, ["estado", "status"]);
+      const sourceCode = inferSourceCode(rawRow);
+      const status = getFirstValue(rawRow, STATUS_ALIASES);
 
       const { matchedProduct, error: matchError } = matchProduct({
         products: (products ?? []).map((product) => ({
@@ -554,10 +643,12 @@ const BulkAccountImport = () => {
   };
 
   return (
-    <div className="container py-10 max-w-6xl space-y-6">
-      <Button variant="ghost" size="sm" asChild className="mb-2">
-        <Link to="/admin"><ChevronLeft />Admin</Link>
-      </Button>
+    <div className={cn(embedded ? "w-full max-w-none space-y-6" : "container py-10 max-w-6xl space-y-6")}>
+      {!embedded && (
+        <Button variant="ghost" size="sm" asChild className="mb-2">
+          <Link to="/admin"><ChevronLeft />Admin</Link>
+        </Button>
+      )}
 
       <div>
         <h1 className="font-display font-black text-3xl md:text-4xl">
@@ -608,9 +699,9 @@ const BulkAccountImport = () => {
         {previewRows.length === 0 ? (
           <div className="text-sm text-muted-foreground">Todavía no generaste preview.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[420px] overflow-auto rounded-lg border border-border/60">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+              <thead className="sticky top-0 bg-muted/90 text-xs uppercase tracking-wider text-muted-foreground backdrop-blur">
                 <tr>
                   <th className="text-left p-3">Fila</th>
                   <th className="text-left p-3">Codigo</th>

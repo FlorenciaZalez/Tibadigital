@@ -17,7 +17,7 @@ const PsPlus = () => {
       .select("*")
       .eq("is_active", true)
       .gt("stock", 0)
-      .eq("is_ps_plus", true)
+      .or("account_tier.eq.plus,is_ps_plus.eq.true")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) setProducts(data as any);

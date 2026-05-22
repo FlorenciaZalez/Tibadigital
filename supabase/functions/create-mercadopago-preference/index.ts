@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     const payload: Record<string, unknown> = {
       items: (order.order_items || []).map((item: any) => ({
-        id: item.product_id,
+        id: item.product_id ?? item.product_title,
         title: item.product_title,
         quantity: item.quantity,
         currency_id: "ARS",

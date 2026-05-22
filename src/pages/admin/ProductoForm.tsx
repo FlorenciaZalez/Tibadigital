@@ -3,12 +3,14 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { ChevronLeft, Save, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { getStoredGlobalMarkupPct } from "@/lib/pricing";
 import { embedAccountTierInGenre, embedPlatformInGenre, getLegacyCompatiblePlatform, inferAccountTier, inferPlatform, isInvalidCombinedPlatformError, isMissingAccountTierColumnError, stripAccountTierFromGenre, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
 import { toast } from "sonner";
 
@@ -16,6 +18,7 @@ const PLATFORMS = ["PS5", "PS4", "PS4/PS5"];
 const ACCOUNT_TIERS = [
   { value: "primary", label: "Primaria" },
   { value: "secondary", label: "Secundaria" },
+  { value: "plus", label: "Plus" },
 ];
 
 const slugify = (s: string) =>
@@ -25,14 +28,11 @@ const slugify = (s: string) =>
 const buildProductSlug = (title: string, platform: string, accountTier: string) =>
   slugify([title, platform, accountTier].filter(Boolean).join(" "));
 
-/** Redondea al $100 más cercano: $1160→$1200, $1140→$1100 */
-const roundTo100 = (n: number) => Math.round(n / 100) * 100;
-
 const computeFinalPrice = (resellerPrice: string, markupPct: string): string => {
   const base = parseFloat(resellerPrice);
   const pct = parseFloat(markupPct);
-  if (!base || isNaN(base) || !pct || isNaN(pct)) return "";
-  return String(roundTo100(base * (1 + pct / 100)));
+  if (!Number.isFinite(base) || base <= 0 || !Number.isFinite(pct)) return "";
+  return String(Math.round(base * (1 + pct / 100)));
 };
 
 const ProductoForm = () => {
@@ -42,12 +42,27 @@ const ProductoForm = () => {
   const isNew = id === "nuevo";
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [globalMarkupPct, setGlobalMarkupPct] = useState(getStoredGlobalMarkupPct());
+  const [discountPriceEnabled, setDiscountPriceEnabled] = useState(false);
   const [form, setForm] = useState({
     title: "", slug: "", description: "", price: "", discount_price: "", reseller_price: "",
-    markup_pct: "",
     stock: "1", platform: "PS5", account_tier: "primary", genre: "", cover_url: "",
-    release_year: "", featured: false, is_estreno: false, is_ps_plus: false, is_active: true,
+    release_year: "", featured: false, is_estreno: false, is_preventa: false, is_ps_plus: false, is_active: true,
   });
+
+  useEffect(() => {
+    const syncGlobalMarkup = () => {
+      const nextGlobalMarkupPct = getStoredGlobalMarkupPct();
+      setGlobalMarkupPct(nextGlobalMarkupPct);
+      setForm((current) => ({
+        ...current,
+        price: computeFinalPrice(current.reseller_price, String(nextGlobalMarkupPct)) || current.price,
+      }));
+    };
+
+    window.addEventListener("global-markup-updated", syncGlobalMarkup);
+    return () => window.removeEventListener("global-markup-updated", syncGlobalMarkup);
+  }, []);
 
   useEffect(() => {
     document.title = isNew ? "Nuevo producto | Admin" : "Editar producto | Admin";
@@ -56,18 +71,14 @@ const ProductoForm = () => {
       if (data) {
         const resellerStr = data.reseller_price ? String(data.reseller_price) : "";
         const priceStr = String(data.price);
-        let markupPct = "";
-        if (data.reseller_price && data.reseller_price > 0 && data.price > 0) {
-          markupPct = String(Math.round(((data.price / data.reseller_price) - 1) * 100));
-        }
+        setDiscountPriceEnabled(data.discount_price != null);
         setForm({
         title: data.title,
         slug: data.slug,
         description: data.description ?? "",
-        price: priceStr,
+        price: computeFinalPrice(resellerStr, String(globalMarkupPct)) || priceStr,
         discount_price: data.discount_price ? String(data.discount_price) : "",
         reseller_price: resellerStr,
-        markup_pct: markupPct,
         stock: String(data.stock),
         platform: inferPlatform(data),
         account_tier: inferAccountTier(data),
@@ -76,12 +87,13 @@ const ProductoForm = () => {
         release_year: data.release_year ? String(data.release_year) : "",
         featured: data.featured,
         is_estreno: data.is_estreno ?? false,
-        is_ps_plus: data.is_ps_plus ?? false,
+        is_preventa: data.is_preventa ?? false,
+        is_ps_plus: inferAccountTier(data) === "plus" || data.is_ps_plus === true,
         is_active: data.is_active,
       });
       }
     });
-  }, [id, isNew]);
+  }, [globalMarkupPct, id, isNew]);
 
   const handleUpload = async (file: File) => {
     if (!user) return;
@@ -103,7 +115,7 @@ const ProductoForm = () => {
       return;
     }
     if (!form.price || !Number(form.price)) {
-      toast.error("Ingresá el porcentaje para calcular el precio final");
+      toast.error("Definí un precio revendedor válido para calcular el precio final");
       return;
     }
     setSaving(true);
@@ -112,7 +124,7 @@ const ProductoForm = () => {
       slug: buildProductSlug(form.title, form.platform, form.account_tier),
       description: form.description || null,
       price: Number(form.price),
-      discount_price: form.discount_price ? Number(form.discount_price) : null,
+      discount_price: discountPriceEnabled && form.discount_price ? Number(form.discount_price) : null,
       reseller_price: form.reseller_price ? Number(form.reseller_price) : null,
       stock: parseInt(form.stock) || 0,
       platform: form.platform as any,
@@ -122,7 +134,8 @@ const ProductoForm = () => {
       release_year: form.release_year ? parseInt(form.release_year) : null,
       featured: form.featured,
       is_estreno: form.is_estreno,
-      is_ps_plus: form.is_ps_plus,
+      is_preventa: form.is_preventa,
+      is_ps_plus: form.account_tier === "plus",
       is_active: form.is_active,
     };
 
@@ -154,7 +167,7 @@ const ProductoForm = () => {
   };
 
   return (
-    <div className="container py-10 max-w-3xl">
+    <div className="container py-10 max-w-5xl">
       <Button variant="ghost" size="sm" asChild className="mb-6">
         <Link to="/admin"><ChevronLeft />Volver al admin</Link>
       </Button>
@@ -219,7 +232,7 @@ const ProductoForm = () => {
             </div>
             <div>
               <Label htmlFor="account_tier">Tipo de cuenta *</Label>
-              <Select value={form.account_tier} onValueChange={(v) => setForm({ ...form, account_tier: v })}>
+              <Select value={form.account_tier} onValueChange={(v) => setForm({ ...form, account_tier: v, is_ps_plus: v === "plus" })}>
                 <SelectTrigger className="bg-input mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>{ACCOUNT_TIERS.map((tier) => <SelectItem key={tier.value} value={tier.value}>{tier.label}</SelectItem>)}</SelectContent>
               </Select>
@@ -233,42 +246,110 @@ const ProductoForm = () => {
               <Input id="release_year" type="number" value={form.release_year} onChange={(e) => setForm({ ...form, release_year: e.target.value })} className="bg-input mt-1" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Creá una publicación por combinación. Ejemplos: FC 26 + PS5 + Primaria, FC 26 + PS5 + Secundaria, FC 26 + PS4 + Primaria.</p>
+          <p className="text-xs text-muted-foreground">Creá una publicación por combinación. Ejemplos: FC 26 + PS5 + Primaria, FC 26 + PS5 + Secundaria, PlayStation Plus Extra + PS5 + Plus.</p>
+
+          <div className="space-y-4 border-t border-border/70 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="featured" className="text-base">Oferta</Label>
+                <p className="text-xs text-muted-foreground">Aparece en la categoría Ofertas</p>
+              </div>
+              <Switch id="featured" checked={form.featured} onCheckedChange={(v) => setForm({ ...form, featured: v })} />
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-base">Novedades</Label>
+                <p className="text-xs text-muted-foreground">Marcá si esta publicación es estreno, preventa o ambas.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label htmlFor="is_estreno" className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 px-4 py-3 cursor-pointer">
+                  <Checkbox
+                    id="is_estreno"
+                    checked={form.is_estreno}
+                    onCheckedChange={(checked) => setForm({ ...form, is_estreno: checked === true })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="block text-sm font-medium">Estreno</span>
+                    <span className="text-xs text-muted-foreground">Aparece como lanzamiento reciente.</span>
+                  </div>
+                </label>
+                <label htmlFor="is_preventa" className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 px-4 py-3 cursor-pointer">
+                  <Checkbox
+                    id="is_preventa"
+                    checked={form.is_preventa}
+                    onCheckedChange={(checked) => setForm({ ...form, is_preventa: checked === true })}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="block text-sm font-medium">Preventa</span>
+                    <span className="text-xs text-muted-foreground">Aparece en la categoría de reservas anticipadas.</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="is_active" className="text-base">Activo</Label>
+                <p className="text-xs text-muted-foreground">Visible en el catálogo</p>
+              </div>
+              <Switch id="is_active" checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
+            </div>
+          </div>
         </div>
 
         {/* Pricing */}
         <div className="card-cyber p-6 rounded-xl space-y-4">
-          <h2 className="font-display font-bold text-base uppercase tracking-wider">Precio y stock</h2>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="font-display font-bold text-base uppercase tracking-wider">Precio y stock</h2>
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-display uppercase tracking-[0.16em] text-primary">
+              <span>Cliente final global</span>
+              <span>{globalMarkupPct}%</span>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="reseller_price">Precio revendedor (ARS) *</Label>
               <Input id="reseller_price" type="number" step="1" required value={form.reseller_price} onChange={(e) => {
                 const newReseller = e.target.value;
-                const newPrice = computeFinalPrice(newReseller, form.markup_pct);
+                const newPrice = computeFinalPrice(newReseller, String(globalMarkupPct));
                 setForm({ ...form, reseller_price: newReseller, price: newPrice || form.price });
               }} className="bg-input mt-1" />
             </div>
             <div>
-              <Label htmlFor="markup_pct">Porcentaje cliente final (%)</Label>
-              <Input id="markup_pct" type="number" step="1" value={form.markup_pct} onChange={(e) => {
-                const newPct = e.target.value;
-                const newPrice = computeFinalPrice(form.reseller_price, newPct);
-                setForm({ ...form, markup_pct: newPct, price: newPrice || form.price });
-              }} className="bg-input mt-1" placeholder="Ej: 16" />
-              <p className="text-xs text-muted-foreground mt-1">Precio final = revendedor + %  (redondeado a $100)</p>
-            </div>
-            <div>
               <Label htmlFor="price">Precio cliente final (ARS)</Label>
               <Input id="price" type="number" step="1" value={form.price} readOnly className="bg-input mt-1 opacity-70" />
-              {form.reseller_price && form.markup_pct && form.price && (
+              {form.reseller_price && form.price && (
                 <p className="text-xs text-primary mt-1">
-                  ${form.reseller_price} + {form.markup_pct}% = ${form.price}
+                  ${form.reseller_price} + {globalMarkupPct}% = ${form.price}
                 </p>
               )}
             </div>
             <div>
-              <Label htmlFor="discount_price">Precio oferta cliente (ARS)</Label>
-              <Input id="discount_price" type="number" step="1" value={form.discount_price} onChange={(e) => setForm({ ...form, discount_price: e.target.value })} className="bg-input mt-1" />
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="discount_price">Precio sin oferta cliente final (ARS)</Label>
+                <Switch
+                  id="discount_price_enabled"
+                  checked={discountPriceEnabled}
+                  onCheckedChange={(checked) => {
+                    setDiscountPriceEnabled(checked);
+                    if (!checked) {
+                      setForm((current) => ({ ...current, discount_price: "" }));
+                    }
+                  }}
+                />
+              </div>
+              <Input
+                id="discount_price"
+                type="number"
+                step="1"
+                value={form.discount_price}
+                onChange={(e) => setForm({ ...form, discount_price: e.target.value })}
+                disabled={!discountPriceEnabled}
+                className="bg-input mt-1 disabled:opacity-50"
+              />
             </div>
             <div>
               <Label htmlFor="stock">Stock *</Label>
@@ -276,39 +357,6 @@ const ProductoForm = () => {
             </div>
           </div>
         </div>
-
-        {/* Toggles */}
-        <div className="card-cyber p-6 rounded-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="featured" className="text-base">Oferta</Label>
-              <p className="text-xs text-muted-foreground">Aparece en la categoría Ofertas</p>
-            </div>
-            <Switch id="featured" checked={form.featured} onCheckedChange={(v) => setForm({ ...form, featured: v })} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="is_estreno" className="text-base">Estrenos y preventas</Label>
-              <p className="text-xs text-muted-foreground">Aparece en la categoría Estrenos y Preventas</p>
-            </div>
-            <Switch id="is_estreno" checked={form.is_estreno} onCheckedChange={(v) => setForm({ ...form, is_estreno: v })} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="is_ps_plus" className="text-base">PlayStation Plus</Label>
-              <p className="text-xs text-muted-foreground">Aparece en la categoría PlayStation Plus</p>
-            </div>
-            <Switch id="is_ps_plus" checked={form.is_ps_plus} onCheckedChange={(v) => setForm({ ...form, is_ps_plus: v })} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label htmlFor="is_active" className="text-base">Activo</Label>
-              <p className="text-xs text-muted-foreground">Visible en el catálogo</p>
-            </div>
-            <Switch id="is_active" checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
-          </div>
-        </div>
-
         <div className="flex gap-3">
           <Button type="submit" variant="hero" size="lg" disabled={saving}>
             <Save />{saving ? "Guardando..." : "Guardar producto"}

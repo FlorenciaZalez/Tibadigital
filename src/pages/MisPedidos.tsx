@@ -28,7 +28,7 @@ interface Order {
   verification_status: string;
   verification_notes: string | null;
   whatsapp: string | null;
-  order_items: { product_id: string; product_title: string; quantity: number; unit_price: number }[];
+  order_items: { product_id: string | null; product_title: string; quantity: number; unit_price: number }[];
 }
 
 const formatPrice = (n: number, decimals = 0) =>

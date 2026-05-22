@@ -27,6 +27,8 @@ import ProductKeys from "./pages/admin/ProductKeys.tsx";
 import AdminPedidos from "./pages/admin/AdminPedidos.tsx";
 import BulkAccountImport from "./pages/admin/BulkAccountImport.tsx";
 import EmailPreview from "./pages/admin/EmailPreview.tsx";
+import AdminFaqs from "./pages/admin/AdminFaqs.tsx";
+import AdminInstructions from "./pages/admin/AdminInstructions.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -58,7 +60,9 @@ const App = () => (
                 <Route path="/admin" element={<ProtectedRoute adminOnly><Admin /></ProtectedRoute>} />
                 <Route path="/admin/pedidos" element={<ProtectedRoute adminOnly><AdminPedidos /></ProtectedRoute>} />
                 <Route path="/admin/importar-cuentas" element={<ProtectedRoute adminOnly><BulkAccountImport /></ProtectedRoute>} />
+                <Route path="/admin/instructivos" element={<ProtectedRoute adminOnly><AdminInstructions /></ProtectedRoute>} />
                 <Route path="/admin/email-preview" element={<ProtectedRoute adminOnly><EmailPreview /></ProtectedRoute>} />
+                <Route path="/admin/faqs" element={<ProtectedRoute adminOnly><AdminFaqs /></ProtectedRoute>} />
                 <Route path="/admin/producto/:id" element={<ProtectedRoute adminOnly><ProductoForm /></ProtectedRoute>} />
                 <Route path="/admin/producto/:id/keys" element={<ProtectedRoute adminOnly><ProductKeys /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />

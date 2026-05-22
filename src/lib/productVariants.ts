@@ -1,24 +1,28 @@
-export type AccountTier = "primary" | "secondary";
+export type AccountTier = "primary" | "secondary" | "plus";
 export type PlatformVariant = "PS4" | "PS5" | "PS4/PS5";
 
 type VariantLike = {
   account_tier?: string | null;
   genre?: string | null;
+  is_ps_plus?: boolean | null;
   platform?: string | null;
   slug?: string | null;
   title?: string | null;
 };
 
+const PLUS_REGEX = /\b(plus|ps\s*plus|playstation\s*plus)\b/i;
 const SECONDARY_REGEX = /\b(secundaria|secondary)\b/i;
 const PRIMARY_REGEX = /\b(primaria|primary|general)\b/i;
 const COMBINED_PLATFORM_REGEX = /(ps4\s*\/\s*ps5|ps5\s*\/\s*ps4|ps4-ps5|ps5-ps4)/i;
-const START_VARIANT_PREFIX_REGEX = /^\s*((primaria|secundaria|ps4\s*\/\s*ps5|ps5\s*\/\s*ps4|ps4|ps5)\s*(\||·|-|:)\s*)+/i;
+const START_VARIANT_PREFIX_REGEX = /^\s*((primaria|secundaria|plus|ps\s*plus|playstation\s*plus|ps4\s*\/\s*ps5|ps5\s*\/\s*ps4|ps4|ps5)\s*(\||·|-|:)\s*)+/i;
 
 export const inferAccountTier = (value: VariantLike): AccountTier => {
+  if (value.account_tier === "plus" || value.is_ps_plus) return "plus";
   if (value.account_tier === "secondary") return "secondary";
   if (value.account_tier === "primary" || value.account_tier === "general") return "primary";
 
   const source = [value.genre, value.slug, value.title].filter(Boolean).join(" ");
+  if (PLUS_REGEX.test(source)) return "plus";
   if (SECONDARY_REGEX.test(source)) return "secondary";
   if (PRIMARY_REGEX.test(source)) return "primary";
 
@@ -26,7 +30,7 @@ export const inferAccountTier = (value: VariantLike): AccountTier => {
 };
 
 export const getAccountTierLabel = (tier: string | null | undefined) =>
-  tier === "secondary" ? "Secundaria" : "Primaria";
+  tier === "plus" ? "Plus" : tier === "secondary" ? "Secundaria" : "Primaria";
 
 export const inferPlatform = (value: VariantLike): PlatformVariant => {
   const source = [value.genre, value.slug, value.title].filter(Boolean).join(" ");
@@ -42,6 +46,11 @@ export const inferPlatform = (value: VariantLike): PlatformVariant => {
 
 export const getPlatformLabel = (platform: string | null | undefined) =>
   inferPlatform({ platform });
+
+export const getInstructionPlatform = (platform: string | null | undefined): "PS4" | "PS5" => {
+  if (platform === "PS4") return "PS4";
+  return "PS5";
+};
 
 export const stripAccountTierFromGenre = (genre: string | null | undefined) => {
   if (!genre) return "";

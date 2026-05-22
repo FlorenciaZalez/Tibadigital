@@ -61,7 +61,6 @@ const ProductoDetalle = () => {
   const images = [product.cover_url, ...(product.gallery || [])].filter(Boolean) as string[];
   const originalPriceView = getPricePresentation(Number(product.price), country);
   const finalPriceView = getPricePresentation(finalPrice, country);
-  const installmentView = getPricePresentation(finalPrice / 12, country);
   const accountTier = inferAccountTier(product);
   const platform = inferPlatform(product);
 
@@ -129,7 +128,6 @@ const ProductoDetalle = () => {
             </div>
             <div className="text-sm text-muted-foreground space-y-1">
               {finalPriceView.secondary && <div>{finalPriceView.secondary}</div>}
-              <div>o 12 cuotas sin interés de {installmentView.primary}</div>
             </div>
 
             <div className="flex items-center gap-3 pt-3">
@@ -152,7 +150,7 @@ const ProductoDetalle = () => {
 
             <div className="flex items-center gap-2 text-xs text-success pt-1">
               <Shield className="h-3.5 w-3.5" />
-              {product.stock > 0 ? `${product.stock} en stock — Envío inmediato` : "Sin stock disponible"}
+              {product.stock > 0 ? "En Stock" : "Sin stock disponible"}
             </div>
           </div>
 

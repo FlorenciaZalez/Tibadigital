@@ -1,9 +1,11 @@
+/// <reference path="../_shared/edge-runtime.d.ts" />
+
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { formatDeliveredAccountContent, parseAccountFields } from "../_shared/accountContent.ts";
 import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
 import { extractSourceCodeFromContent, extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
-import { buildDeliveryEmailHtml, buildDeliveryEmailText, type DeliveryEmailItem, type DeliveryEmailTemplateData } from "../../../shared/deliveryEmailTemplate.ts";
+import { buildDeliveryEmailHtml, buildDeliveryEmailText, type DeliveryEmailItem, type DeliveryEmailTemplateData, type DeliveryInstruction } from "../../../shared/deliveryEmailTemplate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,7 +48,7 @@ const syncVisibleStock = async (supabase: ReturnType<typeof createClient>, produ
 
   const counts = new Map<string, number>();
   uniqueProductIds.forEach((productId) => counts.set(productId, 0));
-  keyRows?.forEach((row) => counts.set(row.product_id, (counts.get(row.product_id) ?? 0) + 1));
+  keyRows?.forEach((row: { product_id: string }) => counts.set(row.product_id, (counts.get(row.product_id) ?? 0) + 1));
 
   for (const productId of uniqueProductIds) {
     const { error } = await supabase
@@ -58,7 +60,7 @@ const syncVisibleStock = async (supabase: ReturnType<typeof createClient>, produ
   }
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -73,6 +75,38 @@ Deno.serve(async (req) => {
     const { data: order, error: oErr } = await supabase
       .from("orders").select("*, order_items(*)").eq("id", order_id).single();
     if (oErr || !order) return json({ error: "Order not found" }, 404);
+
+    const orderProductIds = Array.from(new Set(order.order_items.map((item: { product_id: string | null }) => item.product_id).filter(Boolean)));
+    const { data: productsData, error: productsError } = await supabase
+      .from("products")
+      .select("id, title, account_tier, platform")
+      .in("id", orderProductIds);
+
+    if (productsError) return json({ error: productsError.message }, 500);
+
+    const productById = new Map<string, { title: string; account_tier: string | null; platform: string | null }>();
+    (productsData ?? []).forEach((product: { id: string; title: string; account_tier: string | null; platform: string | null }) => {
+      productById.set(product.id, product);
+    });
+
+    const { data: instructionRows, error: instructionError } = await supabase
+      .from("account_tier_instructions")
+      .select("tier, platform, instruction_text, image_url")
+      .in("tier", ["primary", "secondary", "plus"]);
+
+    if (instructionError) return json({ error: instructionError.message }, 500);
+
+    const instructionByTierPlatform = new Map<string, DeliveryInstruction>();
+    (instructionRows ?? []).forEach((row: { tier: string; platform: string; instruction_text: string; image_url: string | null }) => {
+      if (!row.instruction_text?.trim() && !row.image_url) return;
+
+      instructionByTierPlatform.set(`${row.tier}:${normalizeInstructionPlatform(row.platform)}`, {
+        title: `Instructivo ${getInstructionTierLabel(row.tier)} ${normalizeInstructionPlatform(row.platform)}`,
+        platform: normalizeInstructionPlatform(row.platform),
+        text: row.instruction_text ?? "",
+        imageUrl: row.image_url,
+      });
+    });
 
     if (accessToken !== SERVICE_KEY) {
       const { data: { user }, error: userErr } = await supabase.auth.getUser(accessToken);
@@ -96,9 +130,11 @@ Deno.serve(async (req) => {
     const { data: profile } = await supabase
       .from("profiles").select("full_name, whatsapp").eq("user_id", order.user_id).single();
 
+    const alreadyDelivered = order.status === "delivered";
+
     // Reservar y obtener una key disponible por cada item, o reutilizar las ya entregadas para reintentos de sync.
-    const deliveredItems: { title: string; key: any }[] = [];
-    if (order.status === "delivered") {
+    const deliveredItems: { title: string; key: any; productId: string | null }[] = [];
+    if (alreadyDelivered) {
       const { data: deliveredKeys, error: deliveredKeysError } = await supabase
         .from("product_keys")
         .select("*")
@@ -109,12 +145,18 @@ Deno.serve(async (req) => {
       if (deliveredKeysError) return json({ error: deliveredKeysError.message }, 500);
 
       const fallbackTitle = order.order_items[0]?.product_title ?? "Producto";
-      (deliveredKeys ?? []).forEach((key) => {
-        deliveredItems.push({ title: fallbackTitle, key });
+      (deliveredKeys ?? []).forEach((key: Record<string, any>) => {
+        const productInfo = key.product_id ? productById.get(key.product_id) : null;
+        deliveredItems.push({ title: productInfo?.title ?? fallbackTitle, key, productId: key.product_id ?? null });
       });
     } else {
       for (const item of order.order_items) {
         for (let i = 0; i < item.quantity; i++) {
+          if (!item.product_id) {
+            deliveredItems.push({ title: item.product_title, key: null, productId: null });
+            continue;
+          }
+
           const { data: avail } = await supabase
             .from("product_keys")
             .select("*")
@@ -130,9 +172,9 @@ Deno.serve(async (req) => {
               delivered_to_user_id: order.user_id,
               delivered_at: new Date().toISOString(),
             }).eq("id", avail.id);
-            deliveredItems.push({ title: item.product_title, key: avail });
+            deliveredItems.push({ title: item.product_title, key: avail, productId: item.product_id });
           } else {
-            deliveredItems.push({ title: item.product_title, key: null });
+            deliveredItems.push({ title: item.product_title, key: null, productId: item.product_id });
           }
         }
       }
@@ -159,18 +201,12 @@ Deno.serve(async (req) => {
       sheetsSyncSummary = "Google Sheets: sin source_code";
     }
 
-    if (order.status === "delivered") {
-      await supabase.from("orders").update({
-        verification_notes: replaceGoogleSheetsSummary(order.verification_notes, sheetsSyncSummary),
-      }).eq("id", order_id);
-
-      return json({ delivered: true, already_delivered: true, google_sheets: sheetsSyncSummary });
+    if (!alreadyDelivered) {
+      await syncVisibleStock(supabase, order.order_items.map((item: { product_id: string | null }) => item.product_id).filter(Boolean));
     }
 
-    await syncVisibleStock(supabase, order.order_items.map((item: { product_id: string }) => item.product_id));
-
     const emailOrderCode = order.public_code ?? order.id.slice(0, 8).toUpperCase();
-    const emailItems: DeliveryEmailItem[] = deliveredItems.map(({ title, key }) => {
+    const emailItems: DeliveryEmailItem[] = deliveredItems.map(({ title, key, productId }) => {
       if (!key) {
         return {
           kind: "out_of_stock",
@@ -183,13 +219,19 @@ Deno.serve(async (req) => {
       const displayContent = key.key_type === "account"
         ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
         : key.content;
+      const accountFields = key.key_type === "account" ? parseAccountFields(displayContent) : [];
+
+      const tier = normalizeInstructionTier(productById.get(productId ?? "")?.account_tier ?? null);
+      const instructionPlatform = resolveInstructionPlatform(accountFields, productById.get(productId ?? "")?.platform ?? null);
+      const instruction = tier ? instructionByTierPlatform.get(`${tier}:${instructionPlatform}`) ?? null : null;
 
       if (key.key_type === "account") {
         return {
           kind: "account",
           title,
-          fields: parseAccountFields(displayContent),
+          fields: accountFields,
           notes: cleanNotes,
+          instruction,
         };
       }
 
@@ -281,10 +323,10 @@ Deno.serve(async (req) => {
 
     await supabase.from("orders").update({
       status: "delivered",
-      verification_notes: `Entregado. Email: ${emailSent ? "OK" : "FAIL " + emailError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"} · ${sheetsSyncSummary}`,
+      verification_notes: `${alreadyDelivered ? "Reenvio" : "Entregado"}. Email: ${emailSent ? "OK" : "FAIL " + emailError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"} · ${sheetsSyncSummary}`,
     }).eq("id", order_id);
 
-    return json({ delivered: true, email_sent: emailSent, whatsapp_sent: waSent });
+    return json({ delivered: true, email_sent: emailSent, whatsapp_sent: waSent, already_delivered: alreadyDelivered });
   } catch (e) {
     console.error("deliver-order error:", e);
     return json({ error: (e as Error).message }, 500);
@@ -296,4 +338,28 @@ function json(body: unknown, status = 200) {
 }
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
+}
+
+function normalizeInstructionTier(value: string | null | undefined) {
+  if (value === "secondary") return "secondary";
+  if (value === "plus") return "plus";
+  if (value === "primary" || value === "general") return "primary";
+  return null;
+}
+
+function getInstructionTierLabel(value: string) {
+  if (value === "secondary") return "Secundaria";
+  if (value === "plus") return "Plus";
+  return "Primaria";
+}
+
+function resolveInstructionPlatform(fields: { label: string; value: string }[], productPlatform: string | null | undefined) {
+  const consoleField = fields.find((field) => field.label.toLowerCase() === "consola")?.value ?? "";
+  return normalizeInstructionPlatform(consoleField || productPlatform);
+}
+
+function normalizeInstructionPlatform(value: string | null | undefined): "PS4" | "PS5" {
+  const normalized = (value ?? "").toUpperCase();
+  if (normalized.includes("PS4") && !normalized.includes("PS5")) return "PS4";
+  return "PS5";
 }

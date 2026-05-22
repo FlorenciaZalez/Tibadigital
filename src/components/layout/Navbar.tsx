@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import type { CountryCode } from "@/lib/currency";
+import { CountryFlag } from "@/components/layout/CountryFlag";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -23,10 +24,10 @@ const navLinks = [
   { to: "/estrenos", label: "Estrenos y preventas" },
 ];
 
-const COUNTRY_FLAGS: Record<CountryCode, { flag: string; label: string }> = {
-  AR: { flag: "🇦🇷", label: "Argentina (ARS)" },
-  UY: { flag: "🇺🇾", label: "Uruguay (UYU)" },
-  OTHER: { flag: "🌎", label: "Internacional (USD)" },
+const COUNTRY_FLAGS: Record<CountryCode, { label: string }> = {
+  AR: { label: "Argentina (ARS)" },
+  UY: { label: "Uruguay (UYU)" },
+  OTHER: { label: "Internacional (USD)" },
 };
 
 export const Navbar = () => {
@@ -80,17 +81,18 @@ export const Navbar = () => {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Cambiar país" className="text-lg">
-                {COUNTRY_FLAGS[country].flag}
+                <CountryFlag country={country} className="h-6 w-6" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="bg-card border-border min-w-[180px]">
-              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { flag: string; label: string }][]).map(([code, { flag, label }]) => (
+              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { label: string }][]).map(([code, { label }]) => (
                 <DropdownMenuItem
                   key={code}
                   onClick={() => setCountry(code)}
                   className={`font-display text-sm ${country === code ? "text-primary font-bold" : ""}`}
                 >
-                  <span className="mr-2">{flag}</span>{label}
+                  <CountryFlag country={code} className="mr-2 h-5 w-5" />
+                  {label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -178,16 +180,16 @@ export const Navbar = () => {
             <div className="h-px bg-border/40 my-2" />
             <p className="py-2 text-xs uppercase tracking-[0.2em] text-muted-foreground font-display">Moneda</p>
             <div className="flex gap-2 pl-4">
-              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { flag: string; label: string }][]).map(([code, { flag, label }]) => (
+              {(Object.entries(COUNTRY_FLAGS) as [CountryCode, { label: string }][]).map(([code, { label }]) => (
                 <Button
                   key={code}
                   variant={country === code ? "neon" : "ghost"}
                   size="sm"
                   onClick={() => { setCountry(code); setOpen(false); }}
-                  className="text-lg px-2"
+                  className="px-2"
                   aria-label={label}
                 >
-                  {flag}
+                  <CountryFlag country={code} className="h-5 w-5" />
                 </Button>
               ))}
             </div>

@@ -10,6 +10,8 @@ export interface Product {
   account_tier?: "general" | "primary" | "secondary";
   genre?: string | null;
   id: string;
+  is_estreno?: boolean | null;
+  is_preventa?: boolean | null;
   title: string;
   slug: string;
   price: number;

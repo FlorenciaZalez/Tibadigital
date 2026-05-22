@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_tier_instructions: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          instruction_text: string
+          platform: Database["public"]["Enums"]["platform"]
+          tier: Database["public"]["Enums"]["account_tier"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          instruction_text?: string
+          platform: Database["public"]["Enums"]["platform"]
+          tier: Database["public"]["Enums"]["account_tier"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          instruction_text?: string
+          platform?: Database["public"]["Enums"]["platform"]
+          tier?: Database["public"]["Enums"]["account_tier"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cart_items: {
         Row: {
           created_at: string
@@ -46,11 +76,41 @@ export type Database = {
           },
         ]
       }
+      faqs: {
+        Row: {
+          answer: string
+          created_at: string
+          id: string
+          is_active: boolean
+          question: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          question?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           id: string
           order_id: string
-          product_id: string
+          product_id: string | null
           product_title: string
           quantity: number
           unit_price: number
@@ -58,7 +118,7 @@ export type Database = {
         Insert: {
           id?: string
           order_id: string
-          product_id: string
+          product_id?: string | null
           product_title: string
           quantity: number
           unit_price: number
@@ -66,7 +126,7 @@ export type Database = {
         Update: {
           id?: string
           order_id?: string
-          product_id?: string
+          product_id?: string | null
           product_title?: string
           quantity?: number
           unit_price?: number
@@ -227,6 +287,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_estreno: boolean
+          is_preventa: boolean
           is_ps_plus: boolean
           platform: Database["public"]["Enums"]["platform"]
           price: number
@@ -250,6 +311,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_estreno?: boolean
+          is_preventa?: boolean
           is_ps_plus?: boolean
           platform?: Database["public"]["Enums"]["platform"]
           price: number
@@ -273,6 +335,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_estreno?: boolean
+          is_preventa?: boolean
           is_ps_plus?: boolean
           platform?: Database["public"]["Enums"]["platform"]
           price?: number
@@ -390,7 +453,7 @@ export type Database = {
       }
     }
     Enums: {
-      account_tier: "general" | "primary" | "secondary"
+      account_tier: "general" | "primary" | "secondary" | "plus"
       app_role: "admin" | "user"
       key_status: "available" | "reserved" | "delivered"
       key_type: "code" | "account" | "link"

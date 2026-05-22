@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { ChevronLeft, ExternalLink, Mail, MonitorSmartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { buildDeliveryEmailHtml, buildDeliveryEmailText, type DeliveryEmailTemplateData } from "../../../shared/deliveryEmailTemplate.ts";
 
-const EmailPreview = () => {
+const EmailPreview = ({ embedded = false }: { embedded?: boolean }) => {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   const previewData: DeliveryEmailTemplateData = {
@@ -49,14 +50,16 @@ const EmailPreview = () => {
   };
 
   return (
-    <div className="container max-w-7xl py-10 space-y-8">
+    <div className={cn(embedded ? "w-full max-w-none space-y-8" : "container py-10 max-w-7xl space-y-8")}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-3">
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/admin">
-              <ChevronLeft className="h-4 w-4" />Volver al admin
-            </Link>
-          </Button>
+          {!embedded && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/admin">
+                <ChevronLeft className="h-4 w-4" />Volver al admin
+              </Link>
+            </Button>
+          )}
           <div>
             <div className="text-xs uppercase tracking-[0.35em] text-secondary font-display">Preview de email</div>
             <h1 className="font-display font-black text-4xl md:text-5xl">

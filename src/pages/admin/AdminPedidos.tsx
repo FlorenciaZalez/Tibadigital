@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ChevronLeft, Eye, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface AdminOrder {
@@ -34,7 +35,7 @@ const VS_BADGE: Record<string, string> = {
   manual_review: "bg-secondary/20 text-secondary border-secondary/40",
 };
 
-const AdminPedidos = () => {
+const AdminPedidos = ({ embedded = false }: { embedded?: boolean }) => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [proofUrls, setProofUrls] = useState<Record<string, string>>({});
@@ -92,10 +93,12 @@ const AdminPedidos = () => {
   const pendingCount = orders.filter((o) => ["awaiting_verification", "manual_review"].includes(o.verification_status)).length;
 
   return (
-    <div className="container py-10 max-w-6xl">
-      <Button variant="ghost" size="sm" asChild className="mb-4">
-        <Link to="/admin"><ChevronLeft />Admin</Link>
-      </Button>
+    <div className={cn(embedded ? "w-full max-w-none space-y-8" : "container py-10 max-w-6xl")}>
+      {!embedded && (
+        <Button variant="ghost" size="sm" asChild className="mb-4">
+          <Link to="/admin"><ChevronLeft />Admin</Link>
+        </Button>
+      )}
 
       <div className="flex items-center justify-between flex-wrap gap-4 mb-8">
         <h1 className="font-display font-black text-3xl md:text-4xl">

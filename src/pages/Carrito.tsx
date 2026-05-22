@@ -7,7 +7,7 @@ import { getPricePresentation } from "@/lib/currency";
 import { useEffect } from "react";
 
 const Carrito = () => {
-  const { items, total, updateQuantity, removeItem } = useCart();
+  const { items, total, updateQuantity, removeItem, clearCart } = useCart();
   const { user, country } = useAuth();
   const navigate = useNavigate();
 
@@ -117,6 +117,9 @@ const Carrito = () => {
             </div>
             <Button variant="hero" size="lg" className="w-full" onClick={() => navigate("/checkout")}>
               <CreditCard />Finalizar compra
+            </Button>
+            <Button variant="outline" size="sm" className="w-full" onClick={() => void clearCart()}>
+              <Trash2 />Vaciar carrito
             </Button>
             <Button variant="ghost" size="sm" asChild className="w-full">
               <Link to="/catalogo">Seguir comprando</Link>

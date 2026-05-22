@@ -3,6 +3,13 @@ export interface DeliveryEmailField {
   value: string;
 }
 
+export interface DeliveryInstruction {
+  title: string;
+  platform?: string | null;
+  text: string;
+  imageUrl?: string | null;
+}
+
 export interface DeliveryEmailItemSummary {
   title: string;
   quantity: number;
@@ -15,6 +22,7 @@ export type DeliveryEmailItem =
       title: string;
       fields: DeliveryEmailField[];
       notes?: string | null;
+      instruction?: DeliveryInstruction | null;
     }
   | {
       kind: "key";
@@ -69,6 +77,15 @@ export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
         ? `<div style="margin-top:10px;font-size:13px;line-height:1.5;color:#b8b0cf;">${escapeHtml(item.notes)}</div>`
         : "";
 
+      const instructionHtml = item.kind === "account" && item.instruction
+        ? `
+          <div style="margin-top:14px;background:#101c22;border:1px solid #224754;border-radius:18px;padding:18px;">
+            <div style="font-size:12px;line-height:1.2;text-transform:uppercase;letter-spacing:1.5px;color:#59e2ff;font-weight:800;margin-bottom:10px;">${escapeHtml(item.instruction.title)}</div>
+            <div style="font-size:14px;line-height:1.7;color:#d8f5ff;white-space:pre-line;">${formatMultilineHtml(item.instruction.text)}</div>
+            ${item.instruction.imageUrl ? `<img src="${escapeHtml(item.instruction.imageUrl)}" alt="${escapeHtml(item.instruction.title)}" style="display:block;width:100%;max-width:420px;height:auto;margin-top:14px;border-radius:14px;border:1px solid #2e5d6c;" />` : ""}
+          </div>`
+        : "";
+
       if (item.kind === "key") {
         return `
           <li style="list-style:none;margin:0 0 18px;padding:18px;background:#13121d;border:1px solid #2a2940;border-radius:20px;">
@@ -96,6 +113,7 @@ export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
             <div style="font-size:12px;line-height:1.2;text-transform:uppercase;letter-spacing:1.5px;color:#33d6ff;font-weight:800;margin-bottom:14px;">Cuenta</div>
             <div style="font-size:0;line-height:0;">${fieldsHtml}</div>
           </div>
+          ${instructionHtml}
           ${notesHtml}
         </li>`;
     })
@@ -165,7 +183,10 @@ export const buildDeliveryEmailText = (data: DeliveryEmailTemplateData) => {
       }
 
       const fields = item.fields.map((field) => `${field.label}: ${field.value}`).join(" | ");
-      return `• ${item.title}: ${fields}${item.notes ? ` (${item.notes})` : ""}`;
+      const instruction = item.instruction
+        ? `\n  Instructivo ${item.instruction.title}: ${item.instruction.text}${item.instruction.imageUrl ? `\n  Imagen: ${item.instruction.imageUrl}` : ""}`
+        : "";
+      return `• ${item.title}: ${fields}${item.notes ? ` (${item.notes})` : ""}${instruction}`;
     })
     .join("\n");
 
@@ -196,4 +217,8 @@ function escapeHtml(value: string) {
     '"': "&quot;",
     "'": "&#39;",
   }[char]!));
+}
+
+function formatMultilineHtml(value: string) {
+  return escapeHtml(value).replace(/\n/g, "<br />");
 }
