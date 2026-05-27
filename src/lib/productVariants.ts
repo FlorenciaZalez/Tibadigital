@@ -87,6 +87,18 @@ export const isMissingAccountTierColumnError = (error: { message?: string | null
   );
 };
 
+export const isMissingPreventaColumnError = (error: { message?: string | null; code?: string | null } | null | undefined) => {
+  if (!error) return false;
+
+  const message = error.message?.toLowerCase() ?? "";
+  return (
+    ((error.code === "42703" || error.code === "PGRST204") && message.includes("is_preventa")) ||
+    (message.includes("is_preventa") && message.includes("does not exist")) ||
+    (message.includes("is_preventa") && message.includes("schema cache")) ||
+    (message.includes("could not find") && message.includes("is_preventa"))
+  );
+};
+
 export const isInvalidCombinedPlatformError = (error: { message?: string | null; code?: string | null } | null | undefined) => {
   if (!error) return false;
 

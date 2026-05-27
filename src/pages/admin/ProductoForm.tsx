@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getStoredGlobalMarkupPct } from "@/lib/pricing";
-import { embedAccountTierInGenre, embedPlatformInGenre, getLegacyCompatiblePlatform, inferAccountTier, inferPlatform, isInvalidCombinedPlatformError, isMissingAccountTierColumnError, stripAccountTierFromGenre, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
+import { embedAccountTierInGenre, embedPlatformInGenre, getLegacyCompatiblePlatform, inferAccountTier, inferPlatform, isInvalidCombinedPlatformError, isMissingAccountTierColumnError, isMissingPreventaColumnError, stripAccountTierFromGenre, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
 import { toast } from "sonner";
 
 const PLATFORMS = ["PS5", "PS4", "PS4/PS5"];
@@ -143,14 +143,15 @@ const ProductoForm = () => {
       ? await supabase.from("products").insert(payload)
       : await supabase.from("products").update(payload).eq("id", id!);
 
-    if (isMissingAccountTierColumnError(error) || isInvalidCombinedPlatformError(error)) {
+    if (isMissingAccountTierColumnError(error) || isInvalidCombinedPlatformError(error) || isMissingPreventaColumnError(error)) {
       const legacyPayload = {
         ...payload,
         platform: getLegacyCompatiblePlatform(form.platform as PlatformVariant),
         genre: embedAccountTierInGenre(embedPlatformInGenre(form.genre, form.platform as PlatformVariant), form.account_tier as AccountTier),
-      } as typeof payload & { account_tier?: never };
+      } as typeof payload & { account_tier?: never; is_preventa?: never };
 
       delete (legacyPayload as { account_tier?: AccountTier }).account_tier;
+      delete (legacyPayload as { is_preventa?: boolean }).is_preventa;
 
       ({ error } = isNew
         ? await supabase.from("products").insert(legacyPayload)
