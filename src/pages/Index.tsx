@@ -12,6 +12,23 @@ const heroBgImg = "/imghero.jpg";
 
 type FaqRow = Tables<"faqs">;
 
+const statsItems = [
+  { num: "40000+", label: "Juegos Vendidos" },
+  { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
+  { num: "+6 años", label: "siendo proveedores" },
+];
+
+const benefitItems = [
+  { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
+  { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
+  { Icon: Sparkles, title: "Mejores precios", desc: "Ofertas actualizadas" },
+];
+
+const repeatItems = <T,>(items: T[], times: number) => Array.from({ length: times }, () => items).flat();
+
+const repeatedStatsItems = repeatItems(statsItems, 4);
+const repeatedBenefitItems = repeatItems(benefitItems, 4);
+
 const Index = () => {
   const [featured, setFeatured] = useState<Product[]>([]);
   const [latest, setLatest] = useState<Product[]>([]);
@@ -128,14 +145,7 @@ const Index = () => {
           style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}
         >
           <div className="flex animate-marquee will-change-transform w-max">
-            {[
-              { num: "40000+", label: "Juegos Vendidos" },
-              { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
-              { num: "+6 años", label: "siendo proveedores" },
-              { num: "40000+", label: "Juegos Vendidos" },
-              { num: "SOPORTE REAL", label: "TODOS LOS DIAS" },
-              { num: "+6 años", label: "siendo proveedores" },
-            ].map((s, i) => (
+            {repeatedStatsItems.map((s, i) => (
               <div key={i} className="flex items-center flex-shrink-0">
                 <div className="flex flex-col items-center justify-center space-y-0.5 px-12 text-center">
                   <div className="font-display font-black text-2xl md:text-3xl text-gradient-neon whitespace-nowrap">{s.num}</div>
@@ -155,14 +165,7 @@ const Index = () => {
           style={{ WebkitMaskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)", maskImage: "linear-gradient(to right, transparent, black 12%, black 88%, transparent)" }}
         >
           <div className="flex animate-marquee-reverse will-change-transform w-max">
-            {[
-              { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
-              { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
-              { Icon: Sparkles, title: "Mejores precios", desc: "Ofertas actualizadas" },
-              { Icon: Shield, title: "100% original", desc: "Productos garantizados" },
-              { Icon: Zap, title: "Entrega rápida", desc: "1-2 hs" },
-              { Icon: Sparkles, title: "Mejores precios", desc: "Ofertas actualizadas" },
-            ].map(({ Icon, title, desc }, i) => (
+            {repeatedBenefitItems.map(({ Icon, title, desc }, i) => (
               <div key={i} className="flex items-center flex-shrink-0">
                 <div className="flex items-center gap-3 px-12">
                   <div className="w-10 h-10 rounded-lg bg-gradient-cyber/20 border border-primary/30 flex items-center justify-center text-primary flex-shrink-0">
@@ -240,6 +243,9 @@ const Index = () => {
                 ÚLTIMOS <span className="text-gradient-neon">LANZAMIENTOS</span>
               </h2>
             </div>
+            <Button variant="neon" className="w-full sm:w-auto" asChild>
+              <Link to="/catalogo">Ver todo el catalogo<ArrowRight /></Link>
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {latest.map((p) => <ProductCard key={p.id} product={p} />)}
