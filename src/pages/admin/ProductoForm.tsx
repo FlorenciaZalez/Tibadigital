@@ -32,7 +32,7 @@ const computeFinalPrice = (resellerPrice: string, markupPct: string): string => 
   const base = parseFloat(resellerPrice);
   const pct = parseFloat(markupPct);
   if (!Number.isFinite(base) || base <= 0 || !Number.isFinite(pct)) return "";
-  return String(Math.round(base * (1 + pct / 100)));
+  return String(Math.ceil((base * (1 + pct / 100)) / 5) * 5);
 };
 
 const ProductoForm = () => {
