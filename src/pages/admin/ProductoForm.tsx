@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getStoredGlobalMarkupPct } from "@/lib/pricing";
+import { computeFinalPrice as computeRoundedFinalPrice, getStoredGlobalMarkupPct } from "@/lib/pricing";
 import { embedAccountTierInGenre, embedPlatformInGenre, getLegacyCompatiblePlatform, inferAccountTier, inferPlatform, isInvalidCombinedPlatformError, isMissingAccountTierColumnError, isMissingPreventaColumnError, stripAccountTierFromGenre, type AccountTier, type PlatformVariant } from "@/lib/productVariants";
 import { toast } from "sonner";
 
@@ -31,8 +31,8 @@ const buildProductSlug = (title: string, platform: string, accountTier: string) 
 const computeFinalPrice = (resellerPrice: string, markupPct: string): string => {
   const base = parseFloat(resellerPrice);
   const pct = parseFloat(markupPct);
-  if (!Number.isFinite(base) || base <= 0 || !Number.isFinite(pct)) return "";
-  return String(Math.ceil((base * (1 + pct / 100)) / 5) * 5);
+  const computedPrice = computeRoundedFinalPrice(base, pct);
+  return computedPrice > 0 ? String(computedPrice) : "";
 };
 
 const ProductoForm = () => {
