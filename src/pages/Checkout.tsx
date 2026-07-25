@@ -14,11 +14,11 @@ import { toast } from "sonner";
 const PAYMENT_METHODS = [
   { id: "mercadopago", label: "MercadoPago", Icon: CreditCard, desc: "Verificación automática" },
   { id: "transferencia", label: "Transferencia", Icon: Banknote, desc: "Aprobación manual" },
-  { id: "binance", label: "Binance / Cripto", Icon: Bitcoin, desc: "USDT, BTC, ETH" },
+  { id: "binance", label: "Binance / Cripto", Icon: Bitcoin, desc: "Checkout oficial + webhook" },
 ];
 
 const Checkout = () => {
-  const { items, total, clearCart } = useCart();
+  const { items, total, refresh: refreshCart } = useCart();
   const { user, country } = useAuth();
   const navigate = useNavigate();
   const [method, setMethod] = useState("mercadopago");
@@ -32,34 +32,33 @@ const Checkout = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    const { data: order, error } = await supabase.from("orders").insert({
-      user_id: user.id,
-      total,
-      payment_method: method,
-      whatsapp: whatsapp || null,
-      notes,
-      status: "pending",
-    }).select().single();
+    const { data: order, error } = await supabase.rpc("create_checkout_order", {
+      _payment_method: method,
+      _whatsapp: whatsapp || null,
+      _notes: notes || null,
+    });
 
     if (error || !order) {
-      toast.error("Error al crear la orden");
+      const message = error?.message?.includes("insufficient stock")
+        ? "El stock cambió mientras comprabas. Revisá el carrito e intentá nuevamente."
+        : "No pudimos crear el pedido de forma segura.";
+      toast.error(message);
       setSubmitting(false);
       return;
     }
-
-    const orderItems = items.map((i) => ({
-      order_id: order.id,
-      product_id: i.product_id,
-      product_title: i.product.title,
-      unit_price: Number(i.product.discount_price ?? i.product.price),
-      quantity: i.quantity,
-    }));
-    await supabase.from("order_items").insert(orderItems);
-    await clearCart();
+    await refreshCart();
 
     if (method === "mercadopago") {
       window.open(`/checkout/mercadopago/${order.id}`, "_blank", "noopener,noreferrer");
       toast.success("Pedido creado", { description: "Abrimos Mercado Pago en una nueva pestaña para que no salgas de la web." });
+      navigate(`/cuenta/pedidos`);
+      setSubmitting(false);
+      return;
+    }
+
+    if (method === "binance") {
+      window.open(`/checkout/binance/${order.id}`, "_blank", "noopener,noreferrer");
+      toast.success("Pedido creado", { description: "Abrimos Binance Pay en una nueva pestaña para que completes el pago sin salir de la web." });
       navigate(`/cuenta/pedidos`);
       setSubmitting(false);
       return;
@@ -131,9 +130,9 @@ const Checkout = () => {
               <p className="text-sm font-display font-bold text-secondary">⚡ Cómo funciona</p>
               <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
                 <li>Confirmás el pedido y se genera un <b>monto exacto único</b> con centavos.</li>
-                <li>Pagás <b>exactamente ese monto</b> desde tu MercadoPago/Binance.</li>
-                <li>Subís el comprobante en "Mis pedidos".</li>
-                <li>El sistema verifica el pago automáticamente y te manda las credenciales por <b>email y WhatsApp</b>.</li>
+                <li>Mercado Pago y Binance Pay abren su checkout oficial; transferencia sigue con comprobante manual.</li>
+                <li>Si elegís transferencia, subís el comprobante en "Mis pedidos".</li>
+                <li>Cuando el pago queda acreditado, el sistema entrega tus credenciales por <b>email y WhatsApp</b>.</li>
               </ol>
             </div>
           </section>

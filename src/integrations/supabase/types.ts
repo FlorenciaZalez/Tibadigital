@@ -151,15 +151,20 @@ export type Database = {
       orders: {
         Row: {
           created_at: string
+          delivery_email: string | null
+          email_sent_at: string | null
           exact_amount: number | null
+          fulfillment_error: string | null
           id: string
           matched_payment_id: string | null
           notes: string | null
+          payment_provider_meta: Json | null
           payment_method: string | null
           payment_proof_url: string | null
           proof_submitted_at: string | null
           public_code: string | null
           shipping_address: string | null
+          sheets_synced_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -171,15 +176,20 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_email?: string | null
+          email_sent_at?: string | null
           exact_amount?: number | null
+          fulfillment_error?: string | null
           id?: string
           matched_payment_id?: string | null
           notes?: string | null
+          payment_provider_meta?: Json | null
           payment_method?: string | null
           payment_proof_url?: string | null
           proof_submitted_at?: string | null
           public_code?: string | null
           shipping_address?: string | null
+          sheets_synced_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -191,15 +201,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_email?: string | null
+          email_sent_at?: string | null
           exact_amount?: number | null
+          fulfillment_error?: string | null
           id?: string
           matched_payment_id?: string | null
           notes?: string | null
+          payment_provider_meta?: Json | null
           payment_method?: string | null
           payment_proof_url?: string | null
           proof_submitted_at?: string | null
           public_code?: string | null
           shipping_address?: string | null
+          sheets_synced_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string
@@ -444,12 +459,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_checkout_order: {
+        Args: {
+          _notes?: string | null
+          _payment_method: string
+          _whatsapp?: string | null
+        }
+        Returns: Database["public"]["Tables"]["orders"]["Row"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      submit_order_payment_proof: {
+        Args: {
+          _order_id: string
+          _storage_path: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

@@ -115,12 +115,15 @@ Deno.serve(async (req) => {
       return json({ error: "Payment already matched to another order" }, 409);
     }
 
-    await supabase.from("orders").update({
+    const { error: paymentUpdateError } = await supabase.from("orders").update({
       status: "paid",
       verification_status: "verified",
       matched_payment_id: String(payment.id),
       verification_notes: "Pago confirmado por Mercado Pago",
     }).eq("id", order_id);
+    if (paymentUpdateError) {
+      return json({ error: "Payment is already associated with another order" }, 409);
+    }
 
     try {
       await triggerDelivery(order_id);

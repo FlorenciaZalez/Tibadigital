@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Package, ChevronLeft, ShoppingBag, Upload, KeyRound, Copy, Loader2, CheckCircle2, AlertCircle, CreditCard } from "lucide-react";
+import { Package, ChevronLeft, ShoppingBag, Upload, KeyRound, Copy, Loader2, CheckCircle2, AlertCircle, CreditCard, Bitcoin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDeliveredAccountContent, parseAccountFields } from "@/lib/accountContent";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ interface Order {
   payment_proof_url: string | null;
   verification_status: string;
   verification_notes: string | null;
+  fulfillment_error: string | null;
   whatsapp: string | null;
   order_items: { product_id: string | null; product_title: string; quantity: number; unit_price: number }[];
 }
@@ -58,6 +59,22 @@ const VS_LABELS: Record<string, { label: string; color: string }> = {
   manual_review: { label: "⏳ En revisión manual", color: "text-secondary" },
 };
 
+const getCustomerOrderMessage = (order: Order) => {
+  if (order.status === "delivered") {
+    return "Tus credenciales ya están disponibles en este pedido.";
+  }
+  if (order.verification_status === "verified" && order.status === "paid") {
+    return "El pago fue confirmado. Estamos terminando la entrega automática; podés reintentarla desde acá.";
+  }
+  if (order.verification_status === "manual_review") {
+    return "Recibimos el comprobante y está en revisión.";
+  }
+  if (order.verification_status === "awaiting_verification") {
+    return "Recibimos el comprobante y estamos verificando el pago.";
+  }
+  return null;
+};
+
 const MisPedidos = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -67,12 +84,7 @@ const MisPedidos = () => {
   const [verifyingFor, setVerifyingFor] = useState<string | null>(null);
   const [retryingFor, setRetryingFor] = useState<string | null>(null);
 
-  useEffect(() => {
-    document.title = "Mis pedidos | TIBADIGITAL";
-    if (user) refresh();
-  }, [user]);
-
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     const [{ data: ords }, { data: ks }] = await Promise.all([
@@ -80,10 +92,15 @@ const MisPedidos = () => {
       supabase.from("product_keys").select("id, key_type, content, notes, reserved_for_order_id")
         .eq("delivered_to_user_id", user.id).eq("status", "delivered"),
     ]);
-    if (ords) setOrders(ords as any);
-    if (ks) setKeys(ks as any);
+    if (ords) setOrders(ords as unknown as Order[]);
+    if (ks) setKeys(ks as DeliveredKey[]);
     setLoading(false);
-  };
+  }, [user]);
+
+  useEffect(() => {
+    document.title = "Mis pedidos | TIBADIGITAL";
+    if (user) void refresh();
+  }, [refresh, user]);
 
   const uploadProof = async (orderId: string, file: File) => {
     if (!user) return;
@@ -96,18 +113,21 @@ const MisPedidos = () => {
       setUploadingFor(null);
       return;
     }
-    await supabase.from("orders").update({
-      payment_proof_url: path,
-      proof_submitted_at: new Date().toISOString(),
-      verification_status: "awaiting_verification",
-    }).eq("id", orderId);
+    const { error: proofError } = await supabase.rpc("submit_order_payment_proof", {
+      _order_id: orderId,
+      _storage_path: path,
+    });
+    if (proofError) {
+      toast.error("El archivo se subió, pero no pudimos asociarlo al pedido: " + proofError.message);
+      setUploadingFor(null);
+      return;
+    }
 
     toast.success("Comprobante subido. Verificando pago...");
     setUploadingFor(null);
 
     // Disparar verificación
     setVerifyingFor(orderId);
-    const { data: { session } } = await supabase.auth.getSession();
     try {
       const { data, error: fnErr } = await supabase.functions.invoke("verify-payment", {
         body: { order_id: orderId },
@@ -118,8 +138,8 @@ const MisPedidos = () => {
       } else if (data?.status === "manual_review") {
         toast.info("Pago en revisión manual. Te notificamos en breve.");
       }
-    } catch (e: any) {
-      toast.error("Error al verificar: " + e.message);
+    } catch (error: unknown) {
+      toast.error("Error al verificar: " + getErrorMessage(error));
     }
     setVerifyingFor(null);
     refresh();
@@ -149,8 +169,8 @@ const MisPedidos = () => {
             : "Entrega reintentada con éxito"
       );
       await refresh();
-    } catch (e: any) {
-      toast.error(`No pudimos reintentar la entrega: ${e.message}`);
+    } catch (error: unknown) {
+      toast.error(`No pudimos reintentar la entrega: ${getErrorMessage(error)}`);
     }
     setRetryingFor(null);
   };
@@ -180,12 +200,19 @@ const MisPedidos = () => {
             const orderKeys = keys.filter((k) => k.reserved_for_order_id === order.id);
             const vs = VS_LABELS[order.verification_status] || VS_LABELS.not_submitted;
             const isMercadoPagoPending = order.payment_method === "mercadopago" && ["pending"].includes(order.status) && order.verification_status !== "verified";
-            const needsProof = ["pending"].includes(order.status) && order.verification_status === "not_submitted" && order.payment_method !== "mercadopago";
+            const isBinancePending = order.payment_method === "binance" && ["pending"].includes(order.status) && order.verification_status !== "verified";
+            const needsProof = ["pending"].includes(order.status) && order.verification_status === "not_submitted" && order.payment_method === "transferencia";
             const verifying = verifyingFor === order.id;
             const uploading = uploadingFor === order.id;
             const retrying = retryingFor === order.id;
-            const needsDeliveryRetry = order.verification_status === "verified" && order.status === "paid" && orderKeys.length === 0;
-            const needsGoogleSheetsRetry = order.status === "delivered" && Boolean(order.verification_notes?.includes("Google Sheets: sin source_code") || order.verification_notes?.includes("Google Sheets: FAIL") || order.verification_notes?.includes("faltantes"));
+            const needsDeliveryRetry = order.verification_status === "verified" && order.status === "paid";
+            const needsGoogleSheetsRetry = Boolean(
+              order.fulfillment_error?.includes("Google Sheets") ||
+              order.verification_notes?.includes("Google Sheets: sin source_code") ||
+              order.verification_notes?.includes("Google Sheets: FAIL") ||
+              order.verification_notes?.includes("faltantes"),
+            );
+            const customerMessage = getCustomerOrderMessage(order);
 
             return (
               <div key={order.id} className="card-cyber rounded-xl p-5 space-y-4">
@@ -267,25 +294,39 @@ const MisPedidos = () => {
                   </div>
                 )}
 
+                {isBinancePending && (
+                  <div className="bg-secondary/10 border border-secondary/40 rounded-lg p-4 space-y-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-widest text-secondary font-display">Binance Pay</div>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Este pedido quedó asociado a un checkout oficial de Binance Pay. Si cerraste la ventana o querés ver el estado real del pago, continuá desde acá.
+                      </p>
+                    </div>
+                    <Button asChild variant="hero" size="lg" className="w-full">
+                      <Link to={`/checkout/binance/${order.id}`} target="_blank" rel="noopener noreferrer">
+                        <Bitcoin className="h-4 w-4" />Continuar pago con Binance Pay
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+
                 {/* Estado de verificación */}
                 {order.verification_status !== "not_submitted" && (
                   <div className="border-t border-border pt-3">
                     <div className={`flex items-center gap-2 text-sm font-display ${vs.color}`}>
                       {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : order.verification_status === "verified" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                      {verifying ? "Verificando pago en MercadoPago..." : vs.label}
+                      {verifying ? "Verificando pago..." : vs.label}
                     </div>
-                    {order.verification_notes && !verifying && (
-                      <p className="text-xs text-muted-foreground mt-1 italic">{order.verification_notes}</p>
+                    {customerMessage && !verifying && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">{customerMessage}</p>
                     )}
                     {(needsDeliveryRetry || needsGoogleSheetsRetry) && (
                       <div className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-3">
                         <p className="text-sm text-warning font-display">
-                          {needsDeliveryRetry
-                            ? "Pago verificado, pero la entrega no terminó. Reintentá desde acá."
-                            : "La entrega salió, pero el sync con Google Sheets no terminó. Reintentá desde acá."}
+                          El pago está confirmado, pero la entrega automática no terminó. Reintentá desde acá.
                         </p>
                         <Button onClick={() => retryDelivery(order.id)} variant="outline" className="w-full sm:w-auto" disabled={retrying}>
-                          {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando...</> : <><KeyRound className="h-4 w-4" />{needsDeliveryRetry ? "Reintentar entrega" : "Reintentar sync Google Sheets"}</>}
+                          {retrying ? <><Loader2 className="h-4 w-4 animate-spin" />Reintentando...</> : <><KeyRound className="h-4 w-4" />Reintentar entrega</>}
                         </Button>
                       </div>
                     )}
@@ -357,3 +398,6 @@ const MisPedidos = () => {
 };
 
 export default MisPedidos;
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);

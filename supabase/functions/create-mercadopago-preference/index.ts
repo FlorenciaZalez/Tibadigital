@@ -39,7 +39,12 @@ Deno.serve(async (req) => {
     const isLocalSite = /localhost|127\.0\.0\.1/.test(site_url);
 
     const payload: Record<string, unknown> = {
-      items: (order.order_items || []).map((item: any) => ({
+      items: (order.order_items || []).map((item: {
+        product_id: string | null;
+        product_title: string;
+        quantity: number;
+        unit_price: number;
+      }) => ({
         id: item.product_id ?? item.product_title,
         title: item.product_title,
         quantity: item.quantity,
@@ -60,6 +65,7 @@ Deno.serve(async (req) => {
         order_id: order.id,
         public_code: order.public_code,
       },
+      notification_url: `${SUPABASE_URL}/functions/v1/mercadopago-webhook`,
     };
 
     if (!isLocalSite) {

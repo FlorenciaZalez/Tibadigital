@@ -25,12 +25,15 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, status")
+      .select("id, user_id, status, verification_status")
       .eq("id", order_id)
       .eq("user_id", user.id)
       .single();
 
     if (orderErr || !order) return json({ ok: false, error: "Order not found" });
+    if (!["paid", "delivered"].includes(order.status) || order.verification_status !== "verified") {
+      return json({ ok: false, error: "El pago todavía no fue verificado" }, 409);
+    }
 
     const response = await fetch(`${SUPABASE_URL}/functions/v1/deliver-order`, {
       method: "POST",

@@ -16,6 +16,7 @@ import Secundarias from "./pages/Secundarias.tsx";
 import ProductoDetalle from "./pages/ProductoDetalle.tsx";
 import Carrito from "./pages/Carrito.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import BinanceCheckout from "./pages/BinanceCheckout.tsx";
 import MercadoPagoCheckout from "./pages/MercadoPagoCheckout.tsx";
 import MercadoPagoResult from "./pages/MercadoPagoResult.tsx";
 import Auth from "./pages/Auth.tsx";
@@ -53,6 +54,7 @@ const App = () => (
                 <Route path="/producto/:slug" element={<ProductoDetalle />} />
                 <Route path="/carrito" element={<Carrito />} />
                 <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+                <Route path="/checkout/binance/:orderId" element={<ProtectedRoute><BinanceCheckout /></ProtectedRoute>} />
                 <Route path="/checkout/mercadopago/:orderId" element={<ProtectedRoute><MercadoPagoCheckout /></ProtectedRoute>} />
                 <Route path="/checkout/mercadopago/resultado" element={<ProtectedRoute><MercadoPagoResult /></ProtectedRoute>} />
                 <Route path="/cuenta" element={<ProtectedRoute><Cuenta /></ProtectedRoute>} />

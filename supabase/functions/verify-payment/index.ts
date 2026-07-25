@@ -141,11 +141,14 @@ Deno.serve(async (req) => {
 
     if (matchedPayment) {
       // Match encontrado: reservar key y disparar entrega
-      await supabase.from("orders").update({
+      const { error: paymentUpdateError } = await supabase.from("orders").update({
         verification_status: "verified",
         status: "paid",
         matched_payment_id: matchedPayment.id,
       }).eq("id", order_id);
+      if (paymentUpdateError) {
+        return json({ error: "Payment is already associated with another order" }, 409);
+      }
 
       try {
         await triggerDelivery(order_id);

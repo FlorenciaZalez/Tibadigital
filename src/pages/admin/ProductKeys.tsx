@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ChevronLeft, Plus, Trash2, KeyRound, CheckCircle2, Clock } from "lucide-react";
+import { ChevronLeft, Plus, Trash2, KeyRound, CheckCircle2, Clock, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,7 @@ interface Key {
   status: "available" | "reserved" | "delivered";
   created_at: string;
   delivered_at: string | null;
+  source_code: string | null;
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -34,32 +35,38 @@ const ProductKeys = () => {
   const [type, setType] = useState<"code" | "account">("code");
   const [content, setContent] = useState("");
   const [notes, setNotes] = useState("");
+  const [sourceCode, setSourceCode] = useState("");
   const [bulk, setBulk] = useState("");
+
+  const refresh = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    const [{ data: prod }, { data: ks }] = await Promise.all([
+      supabase.from("products").select("title").eq("id", id).single(),
+      supabase.from("product_keys").select("*").eq("product_id", id).order("created_at", { ascending: false }),
+    ]);
+    if (prod) setProductTitle(prod.title);
+    if (ks) setKeys(ks as Key[]);
+    setLoading(false);
+  }, [id]);
 
   useEffect(() => {
     document.title = "Stock de keys | TIBADIGITAL";
-    refresh();
-  }, [id]);
-
-  const refresh = async () => {
-    setLoading(true);
-    const [{ data: prod }, { data: ks }] = await Promise.all([
-      supabase.from("products").select("title").eq("id", id!).single(),
-      supabase.from("product_keys").select("*").eq("product_id", id!).order("created_at", { ascending: false }),
-    ]);
-    if (prod) setProductTitle(prod.title);
-    if (ks) setKeys(ks as any);
-    setLoading(false);
-  };
+    void refresh();
+  }, [refresh]);
 
   const addOne = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
     const { error } = await supabase.from("product_keys").insert({
-      product_id: id, key_type: type, content: content.trim(), notes: notes.trim() || null,
+      product_id: id,
+      key_type: type,
+      content: content.trim(),
+      notes: notes.trim() || null,
+      source_code: sourceCode.trim() || null,
     });
     if (error) toast.error("Error: " + error.message);
-    else { toast.success("Key agregada"); setContent(""); setNotes(""); refresh(); }
+    else { toast.success("Key agregada"); setContent(""); setNotes(""); setSourceCode(""); refresh(); }
   };
 
   const addBulk = async () => {
@@ -81,6 +88,22 @@ const ProductKeys = () => {
     await supabase.from("product_keys").delete().eq("id", kid);
     toast.success("Eliminada");
     refresh();
+  };
+
+  const updateSourceCode = async (key: Key) => {
+    const value = prompt("Código exacto de la fila en Google Sheets", key.source_code ?? "");
+    if (value === null) return;
+
+    const { error } = await supabase
+      .from("product_keys")
+      .update({ source_code: value.trim() || null })
+      .eq("id", key.id);
+
+    if (error) toast.error("No pudimos actualizar el código: " + error.message);
+    else {
+      toast.success("Código de Google Sheets actualizado");
+      refresh();
+    }
   };
 
   const counts = {
@@ -121,7 +144,7 @@ const ProductKeys = () => {
           <form onSubmit={addOne} className="space-y-3">
             <div>
               <Label>Tipo</Label>
-              <Select value={type} onValueChange={(v) => setType(v as any)}>
+              <Select value={type} onValueChange={(value: "code" | "account") => setType(value)}>
                 <SelectTrigger className="bg-input mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="code">Código de activación</SelectItem>
@@ -151,6 +174,18 @@ const ProductKeys = () => {
             <div>
               <Label>Notas (opcional)</Label>
               <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ej: no cambiar mail, usar perfil 1, observaciones extra" className="bg-input mt-1" />
+            </div>
+            <div>
+              <Label>Código de la fila en Google Sheets</Label>
+              <Input
+                value={sourceCode}
+                onChange={(e) => setSourceCode(e.target.value)}
+                placeholder="Ej: KS023"
+                className="bg-input mt-1 font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Debe coincidir con la columna CODIGO de la hoja para marcar la cuenta como vendida.
+              </p>
             </div>
             <Button type="submit" variant="hero" className="w-full">Agregar key</Button>
           </form>
@@ -188,6 +223,7 @@ const ProductKeys = () => {
                   <th className="text-left p-3">Tipo</th>
                   <th className="text-left p-3">Contenido</th>
                   <th className="text-left p-3">Estado</th>
+                  <th className="text-left p-3">Código Sheets</th>
                   <th className="text-left p-3">Notas</th>
                   <th className="text-right p-3"></th>
                 </tr>
@@ -205,6 +241,17 @@ const ProductKeys = () => {
                         {k.status === "reserved" && <Clock className="h-3 w-3 inline mr-1" />}
                         {k.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td className="p-3 text-xs font-mono">
+                      <button
+                        type="button"
+                        onClick={() => updateSourceCode(k)}
+                        className="inline-flex items-center gap-1 text-secondary hover:underline"
+                        title="Editar código de Google Sheets"
+                      >
+                        {k.source_code || "Agregar"}
+                        <Pencil className="h-3 w-3" />
+                      </button>
                     </td>
                     <td className="p-3 text-xs text-muted-foreground">{stripSourceMetadata(k.notes) || "—"}</td>
                     <td className="p-3 text-right">
