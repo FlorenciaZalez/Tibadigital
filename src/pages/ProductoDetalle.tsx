@@ -9,7 +9,7 @@ import { getPricePresentation } from "@/lib/currency";
 import { getAccountTierLabel, inferAccountTier, inferPlatform, stripAccountTierFromGenre } from "@/lib/productVariants";
 
 interface ProductFull {
-  account_tier?: "general" | "primary" | "secondary";
+  account_tier?: "general" | "primary" | "secondary" | "plus";
   id: string;
   title: string;
   slug: string;
@@ -27,6 +27,7 @@ interface ProductFull {
 const ProductoDetalle = () => {
   const { slug } = useParams();
   const [product, setProduct] = useState<ProductFull | null>(null);
+  const [variants, setVariants] = useState<ProductFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImg, setActiveImg] = useState<string>("");
   const [qty, setQty] = useState(1);
@@ -36,11 +37,18 @@ const ProductoDetalle = () => {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).gt("stock", 0).maybeSingle().then(({ data }) => {
+    supabase.from("products").select("*").eq("slug", slug).eq("is_active", true).maybeSingle().then(async ({ data }) => {
       if (data) {
-        setProduct(data as any);
+        const selected = data as unknown as ProductFull;
+        setProduct(selected);
         setActiveImg(data.cover_url ?? "");
         document.title = `${data.title} | TIBADIGITAL`;
+        const { data: related } = await supabase
+          .from("products")
+          .select("*")
+          .eq("title", data.title)
+          .eq("is_active", true);
+        setVariants((related as unknown as ProductFull[] | null) ?? [selected]);
       }
       setLoading(false);
     });
@@ -63,6 +71,13 @@ const ProductoDetalle = () => {
   const finalPriceView = getPricePresentation(finalPrice, country);
   const accountTier = inferAccountTier(product);
   const platform = inferPlatform(product);
+  const saleVariants = variants;
+  const selectVariant = (next: ProductFull) => {
+    setProduct(next);
+    setQty(1);
+    setActiveImg(next.cover_url ?? "");
+    window.history.replaceState(null, "", `/producto/${next.slug}`);
+  };
 
   return (
     <div className="container py-10">
@@ -113,6 +128,37 @@ const ProductoDetalle = () => {
 
           {/* Price */}
           <div className="card-cyber p-6 rounded-xl space-y-3">
+            {saleVariants.length > 1 && (
+              <div className="space-y-4 pb-3 border-b border-border/70">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Elegí una opción</div>
+                  <div className="flex flex-wrap gap-2">
+                    {saleVariants.map((option) => {
+                      const optionPlatform = inferPlatform(option);
+                      const optionTier = inferAccountTier(option);
+                      const isSelected = option.id === product.id;
+                      return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        disabled={option.stock <= 0}
+                        onClick={() => selectVariant(option)}
+                        className={`rounded-md border px-4 py-2 font-display font-bold text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${isSelected ? "border-primary bg-primary/15 text-primary" : "border-border hover:border-primary/60"}`}
+                      >
+                        {optionTier === "plus"
+                          ? `${optionPlatform} · Plus primaria`
+                          : optionTier === "secondary"
+                            ? "Secundaria · PS4/PS5"
+                            : `${optionPlatform} · Primaria`}
+                        {option.stock <= 0 ? " · Sin stock" : ""}
+                      </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Las cuentas secundarias funcionan tanto en PS4 como en PS5.</p>
+              </div>
+            )}
             <div className="flex items-end gap-3 flex-wrap">
               {hasDiscount && (
                 <span className="text-lg text-muted-foreground line-through">{originalPriceView.primary}</span>

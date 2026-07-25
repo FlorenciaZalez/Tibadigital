@@ -21,6 +21,23 @@ const ACCOUNT_TIERS = [
   { value: "plus", label: "Plus" },
 ];
 
+type SaleTier = "primary" | "secondary";
+type SalePlatform = "PS4" | "PS5" | "PS4/PS5";
+type VariantKey = "PS4_primary" | "PS5_primary" | "PS4PS5_secondary";
+type VariantDraft = { enabled: boolean; reseller_price: string; price: string; stock: string };
+
+const SALE_VARIANTS: Array<{ key: VariantKey; platform: SalePlatform; tier: SaleTier; label: string }> = [
+  { key: "PS4_primary", platform: "PS4", tier: "primary", label: "PS4 · Primaria" },
+  { key: "PS5_primary", platform: "PS5", tier: "primary", label: "PS5 · Primaria" },
+  { key: "PS4PS5_secondary", platform: "PS4/PS5", tier: "secondary", label: "PS4/PS5 · Secundaria" },
+];
+
+const initialVariants = (): Record<VariantKey, VariantDraft> => ({
+  PS4_primary: { enabled: false, reseller_price: "", price: "", stock: "1" },
+  PS5_primary: { enabled: true, reseller_price: "", price: "", stock: "1" },
+  PS4PS5_secondary: { enabled: false, reseller_price: "", price: "", stock: "1" },
+});
+
 const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -44,6 +61,8 @@ const ProductoForm = () => {
   const [saving, setSaving] = useState(false);
   const [globalMarkupPct, setGlobalMarkupPct] = useState(getStoredGlobalMarkupPct());
   const [discountPriceEnabled, setDiscountPriceEnabled] = useState(false);
+  const [variants, setVariants] = useState(initialVariants);
+  const [isPlusProduct, setIsPlusProduct] = useState(false);
   const [form, setForm] = useState({
     title: "", slug: "", description: "", price: "", discount_price: "", reseller_price: "",
     stock: "1", platform: "PS5", account_tier: "primary", genre: "", cover_url: "",
@@ -58,6 +77,10 @@ const ProductoForm = () => {
         ...current,
         price: computeFinalPrice(current.reseller_price, String(nextGlobalMarkupPct)) || current.price,
       }));
+      setVariants((current) => Object.fromEntries(Object.entries(current).map(([key, variant]) => [
+        key,
+        { ...variant, price: computeFinalPrice(variant.reseller_price, String(nextGlobalMarkupPct)) || variant.price },
+      ])) as Record<VariantKey, VariantDraft>);
     };
 
     window.addEventListener("global-markup-updated", syncGlobalMarkup);
@@ -110,6 +133,56 @@ const ProductoForm = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isNew) {
+      const availableVariants = isPlusProduct
+        ? SALE_VARIANTS.filter(({ tier }) => tier === "primary")
+        : SALE_VARIANTS;
+      const enabledVariants = availableVariants.filter(({ key }) => variants[key].enabled);
+      if (enabledVariants.length === 0) {
+        toast.error("Seleccioná al menos una combinación de consola y tipo de cuenta");
+        return;
+      }
+      const invalidVariant = enabledVariants.find(({ key }) =>
+        !Number(variants[key].reseller_price) || !Number(variants[key].price)
+      );
+      if (invalidVariant) {
+        toast.error(`Completá un precio válido para ${invalidVariant.label}`);
+        return;
+      }
+
+      setSaving(true);
+      const payloads = enabledVariants.map(({ key, platform, tier }) => ({
+        title: form.title,
+        slug: buildProductSlug(form.title, platform, isPlusProduct ? "plus" : tier),
+        description: form.description || null,
+        price: Number(variants[key].price),
+        discount_price: null,
+        reseller_price: Number(variants[key].reseller_price),
+        stock: parseInt(variants[key].stock) || 0,
+        platform,
+        account_tier: isPlusProduct ? "plus" as const : tier,
+        genre: stripAccountTierFromGenre(form.genre) || null,
+        cover_url: form.cover_url || null,
+        release_year: form.release_year ? parseInt(form.release_year) : null,
+        featured: form.featured,
+        is_estreno: form.is_estreno,
+        is_preventa: form.is_preventa,
+        is_ps_plus: isPlusProduct,
+        is_active: form.is_active,
+      }));
+      const { error } = await supabase.from("products").insert(payloads);
+      setSaving(false);
+      if (error) {
+        toast.error(error.message.includes("duplicate")
+          ? "Ya existe alguna de las combinaciones seleccionadas"
+          : `Error al guardar: ${error.message}`);
+      } else {
+        toast.success(`${payloads.length} variante${payloads.length === 1 ? "" : "s"} creada${payloads.length === 1 ? "" : "s"}`);
+        navigate("/admin");
+      }
+      return;
+    }
+
     if (!form.reseller_price || !Number(form.reseller_price)) {
       toast.error("El precio de revendedor es obligatorio");
       return;
@@ -223,7 +296,9 @@ const ProductoForm = () => {
             <Label htmlFor="description">Descripción</Label>
             <Textarea id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="bg-input mt-1" rows={5} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${isNew ? "lg:grid-cols-2" : "lg:grid-cols-4"} gap-4`}>
+            {!isNew && (
+              <>
             <div>
               <Label htmlFor="platform">Plataforma *</Label>
               <Select value={form.platform} onValueChange={(v) => setForm({ ...form, platform: v })}>
@@ -238,6 +313,8 @@ const ProductoForm = () => {
                 <SelectContent>{ACCOUNT_TIERS.map((tier) => <SelectItem key={tier.value} value={tier.value}>{tier.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+              </>
+            )}
             <div>
               <Label htmlFor="genre">Género</Label>
               <Input id="genre" value={form.genre} onChange={(e) => setForm({ ...form, genre: e.target.value })} className="bg-input mt-1" placeholder="Acción, RPG..." />
@@ -247,7 +324,37 @@ const ProductoForm = () => {
               <Input id="release_year" type="number" value={form.release_year} onChange={(e) => setForm({ ...form, release_year: e.target.value })} className="bg-input mt-1" />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Creá una publicación por combinación. Ejemplos: FC 26 + PS5 + Primaria, FC 26 + PS5 + Secundaria, PlayStation Plus Extra + PS5 + Plus.</p>
+          {isNew && (
+            <label htmlFor="is-plus-product" className="flex items-start gap-3 rounded-lg border border-border/70 bg-background/40 px-4 py-3 cursor-pointer">
+              <Checkbox
+                id="is-plus-product"
+                checked={isPlusProduct}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  setIsPlusProduct(enabled);
+                  setForm((current) => ({ ...current, is_ps_plus: enabled }));
+                  if (enabled) {
+                    setVariants((current) => ({
+                      ...current,
+                      PS4PS5_secondary: { ...current.PS4PS5_secondary, enabled: false },
+                    }));
+                  }
+                }}
+                className="mt-0.5"
+              />
+              <div>
+                <span className="block text-sm font-medium">PlayStation Plus</span>
+                <span className="text-xs text-muted-foreground">Marcá esta opción para que aparezca en la categoría Plus.</span>
+              </div>
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {isNew
+              ? isPlusProduct
+                ? "Elegí si la cuenta Plus primaria está disponible para PS4, PS5 o ambas, con precios distintos."
+                : "Más abajo podés habilitar PS4 primaria, PS5 primaria o secundaria, con precio y stock propios."
+              : "Esta edición modifica únicamente la variante indicada. Para crear varias variantes juntas usá “Nuevo producto”."}
+          </p>
 
           <div className="space-y-4 border-t border-border/70 pt-4">
             <div className="flex items-center justify-between">
@@ -310,6 +417,71 @@ const ProductoForm = () => {
               <span>{globalMarkupPct}%</span>
             </div>
           </div>
+          {isNew ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {SALE_VARIANTS.filter(({ tier }) => !isPlusProduct || tier === "primary").map(({ key, label }) => {
+                const variant = variants[key];
+                return (
+                  <div key={key} className={`rounded-xl border p-4 space-y-4 transition-colors ${variant.enabled ? "border-primary/50 bg-primary/5" : "border-border/70 bg-background/30"}`}>
+                    <label htmlFor={`variant-${key}`} className="flex items-center gap-3 cursor-pointer">
+                      <Checkbox
+                        id={`variant-${key}`}
+                        checked={variant.enabled}
+                        onCheckedChange={(checked) => setVariants((current) => ({
+                          ...current,
+                          [key]: { ...current[key], enabled: checked === true },
+                        }))}
+                      />
+                      <span className="font-display font-bold">{label}</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor={`reseller-${key}`}>Precio revendedor *</Label>
+                        <Input
+                          id={`reseller-${key}`}
+                          type="number"
+                          step="1"
+                          disabled={!variant.enabled}
+                          value={variant.reseller_price}
+                          onChange={(e) => {
+                            const reseller_price = e.target.value;
+                            setVariants((current) => ({
+                              ...current,
+                              [key]: {
+                                ...current[key],
+                                reseller_price,
+                                price: computeFinalPrice(reseller_price, String(globalMarkupPct)),
+                              },
+                            }));
+                          }}
+                          className="bg-input mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Precio cliente</Label>
+                        <Input value={variant.price} readOnly disabled={!variant.enabled} className="bg-input mt-1 opacity-70" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label htmlFor={`stock-${key}`}>Stock *</Label>
+                        <Input
+                          id={`stock-${key}`}
+                          type="number"
+                          min="0"
+                          disabled={!variant.enabled}
+                          value={variant.stock}
+                          onChange={(e) => setVariants((current) => ({
+                            ...current,
+                            [key]: { ...current[key], stock: e.target.value },
+                          }))}
+                          className="bg-input mt-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="reseller_price">Precio revendedor (ARS) *</Label>
@@ -357,6 +529,7 @@ const ProductoForm = () => {
               <Input id="stock" type="number" required value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="bg-input mt-1" />
             </div>
           </div>
+          )}
         </div>
         <div className="flex gap-3">
           <Button type="submit" variant="hero" size="lg" disabled={saving}>
