@@ -233,6 +233,7 @@ export type Database = {
           delivered_at: string | null
           delivered_to_user_id: string | null
           id: string
+          initial_verification_code: string | null
           key_type: Database["public"]["Enums"]["key_type"]
           notes: string | null
           product_id: string
@@ -248,6 +249,7 @@ export type Database = {
           delivered_at?: string | null
           delivered_to_user_id?: string | null
           id?: string
+          initial_verification_code?: string | null
           key_type?: Database["public"]["Enums"]["key_type"]
           notes?: string | null
           product_id: string
@@ -263,6 +265,7 @@ export type Database = {
           delivered_at?: string | null
           delivered_to_user_id?: string | null
           id?: string
+          initial_verification_code?: string | null
           key_type?: Database["public"]["Enums"]["key_type"]
           notes?: string | null
           product_id?: string

@@ -13,6 +13,7 @@ interface DeliveredKey {
   key_type: string;
   content: string;
   notes: string | null;
+  initial_verification_code: string | null;
   reserved_for_order_id: string | null;
 }
 
@@ -89,7 +90,7 @@ const MisPedidos = () => {
     setLoading(true);
     const [{ data: ords }, { data: ks }] = await Promise.all([
       supabase.from("orders").select("*, order_items(*)").eq("user_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("product_keys").select("id, key_type, content, notes, reserved_for_order_id")
+      supabase.from("product_keys").select("id, key_type, content, notes, initial_verification_code, reserved_for_order_id")
         .eq("delivered_to_user_id", user.id).eq("status", "delivered"),
     ]);
     if (ords) setOrders(ords as unknown as Order[]);
@@ -150,7 +151,7 @@ const MisPedidos = () => {
     toast.success("Copiado");
   };
 
-  const retryDelivery = async (orderId: string) => {
+  const retryDelivery = async (orderId: string, refreshingCode = false) => {
     setRetryingFor(orderId);
     try {
       const { data, error } = await supabase.functions.invoke("retry-delivery", {
@@ -162,7 +163,9 @@ const MisPedidos = () => {
       if (data?.error) throw new Error(data.error);
 
       toast.success(
-        data?.already_delivered && data?.email_sent
+        refreshingCode
+          ? "Código inicial actualizado"
+          : data?.already_delivered && data?.email_sent
           ? "Email reenviado con éxito"
           : data?.already_delivered
             ? "Ese pedido ya estaba entregado"
@@ -206,6 +209,9 @@ const MisPedidos = () => {
             const uploading = uploadingFor === order.id;
             const retrying = retryingFor === order.id;
             const needsDeliveryRetry = order.verification_status === "verified" && order.status === "paid";
+            const needsInitialCodeRefresh = order.status === "delivered" && orderKeys.some(
+              (key) => key.key_type === "account" && !key.initial_verification_code,
+            );
             const needsGoogleSheetsRetry = Boolean(
               order.fulfillment_error?.includes("Google Sheets") ||
               order.verification_notes?.includes("Google Sheets: sin source_code") ||
@@ -339,6 +345,23 @@ const MisPedidos = () => {
                     <div className="font-display font-bold text-sm flex items-center gap-2 text-primary">
                       <KeyRound className="h-4 w-4" />Tus credenciales
                     </div>
+                    {needsInitialCodeRefresh && (
+                      <div className="rounded-lg border border-secondary/40 bg-secondary/10 p-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Actualizá esta entrega para mostrar también el código de verificación inicial.
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => retryDelivery(order.id, true)}
+                          disabled={retrying}
+                        >
+                          {retrying
+                            ? <><Loader2 className="h-3 w-3 animate-spin" />Actualizando...</>
+                            : <><KeyRound className="h-3 w-3" />Actualizar código inicial</>}
+                        </Button>
+                      </div>
+                    )}
                     {orderKeys.map((k) => (
                       <div key={k.id} className="bg-primary/5 border border-primary/30 rounded-lg p-3 space-y-1">
                         {(() => {
@@ -352,6 +375,9 @@ const MisPedidos = () => {
 
                           const isAccount = k.key_type === "account";
                           const fields = isAccount ? parseAccountFields(formattedContent) : [];
+                          const displayFields = k.initial_verification_code
+                            ? [...fields, { label: "Código de verificación inicial", value: k.initial_verification_code }]
+                            : fields;
 
                           return (
                             <>
@@ -361,14 +387,16 @@ const MisPedidos = () => {
                         {isAccount && fields.length > 1 ? (
                           <div className="space-y-2">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {fields.map((f, i) => (
+                              {displayFields.map((f, i) => (
                                 <div key={i} className="bg-background/50 rounded px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-display">{f.label}</div>
+                                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-display">
+                                    {f.label === "Código" ? "Cuenta" : f.label}
+                                  </div>
                                   <div className="font-mono text-sm break-all">{f.value}</div>
                                 </div>
                               ))}
                             </div>
-                            <Button size="sm" variant="ghost" onClick={() => copy(fields.filter(f => ["Email", "Contraseña"].includes(f.label)).map(f => `${f.label}: ${f.value}`).join("\n") || formattedContent)} className="text-xs">
+                            <Button size="sm" variant="ghost" onClick={() => copy(displayFields.filter(f => ["Email", "Contraseña", "Código de verificación inicial"].includes(f.label)).map(f => `${f.label}: ${f.value}`).join("\n") || formattedContent)} className="text-xs">
                               <Copy className="h-3 w-3 mr-1" />Copiar credenciales
                             </Button>
                           </div>

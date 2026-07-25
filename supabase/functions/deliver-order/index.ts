@@ -201,6 +201,13 @@ Deno.serve(async (req: Request) => {
             allowCreate: !order.email_sent_at,
           });
           if (reservedCode) {
+            const { error: verificationCodeError } = await supabase
+              .from("product_keys")
+              .update({ initial_verification_code: reservedCode.code })
+              .eq("id", key.id);
+            if (verificationCodeError) {
+              throw new Error(`No se pudo guardar el código inicial de ${accountCode}: ${verificationCodeError.message}`);
+            }
             accountFields.push({ label: "Código de verificación inicial", value: reservedCode.code });
             codeReservations.push({ allocationId: String(key.id) });
           }
