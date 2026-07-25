@@ -33,6 +33,7 @@ const EmailPreview = ({ embedded = false }: { embedded?: boolean }) => {
           { label: "Contraseña", value: "Duda3523" },
           { label: "Tipo", value: "PRIMARIA" },
           { label: "Consola", value: "PS4" },
+          { label: "Código de verificación inicial", value: "4821-7390" },
         ],
         notes: "TDP090 | Primaria | PS4",
       },

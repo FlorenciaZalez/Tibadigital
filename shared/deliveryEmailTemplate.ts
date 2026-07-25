@@ -48,9 +48,15 @@ export interface DeliveryEmailTemplateData {
   deliveredItems: DeliveryEmailItem[];
 }
 
+const WHATSAPP_SUPPORT_URL =
+  "https://wa.me/5491161369030?text=Hola%20TIBADIGITAL%2C%20tengo%20una%20consulta%20sobre%20mi%20pedido.";
+
 export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
   const customerName = data.customerName?.trim();
   const introName = customerName ? ` ${escapeHtml(customerName)}` : "";
+  const hasInstructions = data.deliveredItems.some(
+    (item) => item.kind === "account" && Boolean(item.instruction),
+  );
   const logoHtml = data.logoUrl
     ? `<img src="${escapeHtml(data.logoUrl)}" alt="${escapeHtml(data.storeName)}" style="display:block;max-width:190px;height:auto;border:0;" />`
     : `<div style="font-size:14px;line-height:1.2;text-transform:uppercase;letter-spacing:2px;color:#33d6ff;font-weight:800;">${escapeHtml(data.storeName)}</div>`;
@@ -155,11 +161,19 @@ export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
         ${itemsSummaryHtml}
       </table>
     </div>
+    ${hasInstructions ? `
+    <div style="background:#101c22;border:1px solid #224754;border-radius:20px;padding:20px 22px;margin:0 0 24px;">
+      <div style="font-size:16px;line-height:1.4;color:#59e2ff;font-weight:800;">Instalá tu juego correctamente</div>
+      <div style="margin-top:8px;color:#d8f5ff;font-size:15px;line-height:1.7;">Para realizar la instalación de forma correcta, seguí el instructivo que aparece junto a las credenciales de cada producto. Seleccionamos automáticamente los pasos correspondientes a tu tipo de cuenta y consola.</div>
+    </div>` : ""}
     <div style="font-size:24px;line-height:1.2;color:#ff4ecb;font-weight:800;margin:0 0 14px;">Tus credenciales</div>
     <ul style="margin:0;padding:0;">${deliveredItemsHtml}</ul>
     <div style="margin-top:24px;padding-top:20px;border-top:1px solid #2b2940;color:#9d96b7;font-size:13px;line-height:1.7;">
-      Si tenes alguna duda o un dato no coincide, responde este mail y lo revisamos.
-      <br />Gracias por elegir ${escapeHtml(data.storeName)}.
+      Si tenes alguna duda o un dato no coincide, contactanos por WhatsApp y lo revisamos.
+      <div style="margin:16px 0 14px;">
+        <a href="${WHATSAPP_SUPPORT_URL}" target="_blank" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#25d366;color:#08140d;font-size:14px;line-height:1.2;font-weight:800;text-decoration:none;">Contactanos por WhatsApp</a>
+      </div>
+      Gracias por elegir ${escapeHtml(data.storeName)}.
     </div>
   </div>
 </div></body></html>`;
@@ -167,6 +181,9 @@ export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
 
 export const buildDeliveryEmailText = (data: DeliveryEmailTemplateData) => {
   const customerLine = data.customerName?.trim() ? `Hola ${data.customerName?.trim()},\n\n` : "";
+  const hasInstructions = data.deliveredItems.some(
+    (item) => item.kind === "account" && Boolean(item.instruction),
+  );
 
   const itemsSummaryText = data.itemsSummary
     .map((item) => `- ${item.quantity}x ${item.title}: ${item.totalLabel}`)
@@ -200,8 +217,14 @@ export const buildDeliveryEmailText = (data: DeliveryEmailTemplateData) => {
     "Resumen del pedido:",
     itemsSummaryText,
     "",
+    hasInstructions
+      ? "Para instalar tu juego correctamente, seguí el instructivo que aparece junto a las credenciales de cada producto. Seleccionamos automáticamente los pasos correspondientes a tu tipo de cuenta y consola."
+      : "",
     "Tus credenciales:",
     deliveredItemsText,
+    "",
+    "Si tenes alguna duda o un dato no coincide, contactanos por WhatsApp:",
+    WHATSAPP_SUPPORT_URL,
     "",
     `Gracias por elegir ${data.storeName}.`,
   ]

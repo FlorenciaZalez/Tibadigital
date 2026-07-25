@@ -21,6 +21,8 @@ const PUBLIC_SITE_URL = Deno.env.get("PUBLIC_SITE_URL")?.replace(/\/$/, "");
 const EMAIL_LOGO_URL = Deno.env.get("EMAIL_LOGO_URL") ?? (PUBLIC_SITE_URL ? `${PUBLIC_SITE_URL}/logo.png` : null);
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "TIBADIGITAL <onboarding@resend.dev>";
 const EMAIL_REPLY_TO = Deno.env.get("EMAIL_REPLY_TO");
+const CODE_SERVICE_URL = Deno.env.get("CODE_SERVICE_URL")?.replace(/\/$/, "");
+const CODE_SERVICE_API_KEY = Deno.env.get("CODE_SERVICE_API_KEY");
 const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
 const TWILIO_FROM = Deno.env.get("TWILIO_WHATSAPP_FROM"); // ej: whatsapp:+14155238886
 
@@ -163,7 +165,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const emailOrderCode = order.public_code ?? order.id.slice(0, 8).toUpperCase();
-    const emailItems: DeliveryEmailItem[] = deliveredItems.map(({ title, key, productId }) => {
+    const codeReservations: { allocationId: string }[] = [];
+    const emailItems: DeliveryEmailItem[] = await Promise.all(deliveredItems.map(async ({ title, key, productId }) => {
       if (!key) {
         return {
           kind: "out_of_stock",
@@ -178,12 +181,31 @@ Deno.serve(async (req: Request) => {
         ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
         : key.content;
       const accountFields = shouldRenderAsAccount ? parseAccountFields(displayContent) : [];
+      const accountCode = key.source_code
+        ?? extractSourceCodeFromNotes(key.notes)
+        ?? extractSourceCodeFromContent(key.content);
 
       const tier = normalizeInstructionTier(productById.get(productId ?? "")?.account_tier ?? null);
       const instructionPlatform = resolveInstructionPlatform(accountFields, productById.get(productId ?? "")?.platform ?? null);
       const instruction = tier ? instructionByTierPlatform.get(`${tier}:${instructionPlatform}`) ?? null : null;
 
       if (shouldRenderAsAccount) {
+        if (CODE_SERVICE_URL && CODE_SERVICE_API_KEY) {
+          if (!accountCode || !key.id) {
+            throw new Error(`La cuenta ${title} no tiene un CODIGO de origen para solicitar su código de verificación`);
+          }
+          const reservedCode = await reserveAccountCode({
+            account: String(accountCode),
+            allocationId: String(key.id),
+            orderId: String(order.id),
+            allowCreate: !order.email_sent_at,
+          });
+          if (reservedCode) {
+            accountFields.push({ label: "Código de verificación inicial", value: reservedCode.code });
+            codeReservations.push({ allocationId: String(key.id) });
+          }
+        }
+
         return {
           kind: "account",
           title,
@@ -199,7 +221,7 @@ Deno.serve(async (req: Request) => {
         value: displayContent,
         notes: cleanNotes,
       };
-    });
+    }));
 
     const emailContent: DeliveryEmailTemplateData = {
       storeName: STORE_NAME,
@@ -261,6 +283,19 @@ Deno.serve(async (req: Request) => {
       }
     } catch (e) { emailError = (e as Error).message; }
 
+    let codesConfirmed = codeReservations.length === 0;
+    let codesError: string | null = null;
+    if (emailSent && codeReservations.length > 0) {
+      try {
+        await Promise.all(codeReservations.map(({ allocationId }) =>
+          confirmAccountCode({ allocationId, orderId: String(order.id) })
+        ));
+        codesConfirmed = true;
+      } catch (error) {
+        codesError = (error as Error).message;
+      }
+    }
+
     // Enviar WhatsApp via Twilio si está configurado y el cliente cargó número
     let waSent = false;
     let waError: string | null = null;
@@ -288,6 +323,7 @@ Deno.serve(async (req: Request) => {
     const fulfillmentErrors = [
       emailSent ? null : `Email: ${emailError ?? "falló"}`,
       sheetsSynced ? null : sheetsSyncSummary,
+      codesConfirmed ? null : `Códigos: ${codesError ?? "confirmación pendiente"}`,
     ].filter(Boolean);
     const fulfilled = fulfillmentErrors.length === 0;
 
@@ -296,7 +332,7 @@ Deno.serve(async (req: Request) => {
       email_sent_at: emailSent ? order.email_sent_at ?? new Date().toISOString() : null,
       sheets_synced_at: sheetsSynced ? order.sheets_synced_at ?? new Date().toISOString() : null,
       fulfillment_error: fulfilled ? null : fulfillmentErrors.join(" · "),
-      verification_notes: `${fulfilled ? "Entregado" : "Entrega pendiente"}. Email: ${emailSent ? "OK" : "FAIL " + emailError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"} · ${sheetsSyncSummary}`,
+      verification_notes: `${fulfilled ? "Entregado" : "Entrega pendiente"}. Email: ${emailSent ? "OK" : "FAIL " + emailError} · Códigos: ${codesConfirmed ? "OK" : "FAIL " + codesError} · WhatsApp: ${waSent ? "OK" : phone ? "FAIL " + waError : "no number"} · ${sheetsSyncSummary}`,
     }).eq("id", order_id);
 
     if (!fulfilled) {
@@ -304,12 +340,13 @@ Deno.serve(async (req: Request) => {
         delivered: false,
         email_sent: emailSent,
         sheets_synced: sheetsSynced,
+        codes_confirmed: codesConfirmed,
         whatsapp_sent: waSent,
         error: fulfillmentErrors.join(" · "),
       }, 503);
     }
 
-    return json({ delivered: true, email_sent: emailSent, sheets_synced: sheetsSynced, whatsapp_sent: waSent, already_delivered: alreadyDelivered });
+    return json({ delivered: true, email_sent: emailSent, sheets_synced: sheetsSynced, codes_confirmed: codesConfirmed, whatsapp_sent: waSent, already_delivered: alreadyDelivered });
   } catch (e) {
     console.error("deliver-order error:", e);
     return json({ error: (e as Error).message }, 500);
@@ -319,6 +356,55 @@ Deno.serve(async (req: Request) => {
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+async function reserveAccountCode(input: {
+  account: string;
+  allocationId: string;
+  orderId: string;
+  allowCreate: boolean;
+}): Promise<{ code: string } | null> {
+  const response = await fetch(`${CODE_SERVICE_URL}/api/v1/codes/reserve`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${CODE_SERVICE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      account: input.account,
+      allocation_id: input.allocationId,
+      order_id: input.orderId,
+      allow_create: input.allowCreate,
+    }),
+  });
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+
+  if (response.status === 404 && payload.code === "RESERVATION_NOT_FOUND" && !input.allowCreate) {
+    return null;
+  }
+  if (!response.ok || typeof payload.code !== "string") {
+    throw new Error(`No se pudo reservar el código para la cuenta ${input.account}: ${String(payload.error ?? response.status)}`);
+  }
+  return { code: payload.code };
+}
+
+async function confirmAccountCode(input: { allocationId: string; orderId: string }) {
+  const response = await fetch(`${CODE_SERVICE_URL}/api/v1/codes/confirm`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${CODE_SERVICE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      allocation_id: input.allocationId,
+      order_id: input.orderId,
+    }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+    throw new Error(`No se pudo confirmar el código: ${String(payload.error ?? response.status)}`);
+  }
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(value);
 }
