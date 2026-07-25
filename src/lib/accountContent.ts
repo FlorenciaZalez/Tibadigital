@@ -4,6 +4,25 @@ const CODE_REGEX = /^\s*([A-Za-z0-9-]+)/;
 const TIER_REGEX = /\b(PRIMARIA|SECUNDARIA)\b/i;
 const PLATFORM_REGEX = /\b(PS4\/PS5|PS5|PS4)\b/i;
 
+export const isAccountContent = (
+  content: string | null | undefined,
+  notes?: string | null | undefined,
+) => {
+  const rawContent = (content ?? "").trim();
+  if (!rawContent) return false;
+
+  const tabParts = rawContent.split("\t").map((part) => part.trim()).filter(Boolean);
+  if (tabParts.length >= 4 && tabParts.some((part) => EMAIL_REGEX.test(part))) return true;
+
+  const combined = `${rawContent}\n${notes ?? ""}`;
+  return EMAIL_REGEX.test(rawContent)
+    && (
+      PASSWORD_LINE_REGEX.test(rawContent)
+      || TIER_REGEX.test(combined)
+      || PLATFORM_REGEX.test(combined)
+    );
+};
+
 const extractPartsFromNotes = (notes: string | null | undefined) => {
   const parts = (notes ?? "")
     .split("|")
@@ -61,6 +80,6 @@ export const parseAccountFields = (formatted: string): { label: string; value: s
   const parts = formatted.split("\t").map((p) => p.trim()).filter(Boolean);
   if (parts.length < 4) return [{ label: "Datos", value: formatted }];
 
-  const labels = ["Cuenta", "Juego", "Email", "Contraseña", "Tipo", "Consola"];
+  const labels = ["Código", "Juego", "Email", "Contraseña", "Tipo", "Consola"];
   return parts.map((value, i) => ({ label: labels[i] ?? `Campo ${i + 1}`, value }));
 };

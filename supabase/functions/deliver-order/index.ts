@@ -3,7 +3,7 @@
 
 // Edge function: entrega las keys de un pedido pagado por email + (opcional) WhatsApp
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { formatDeliveredAccountContent, parseAccountFields } from "../_shared/accountContent.ts";
+import { formatDeliveredAccountContent, isAccountContent, parseAccountFields } from "../_shared/accountContent.ts";
 import { isGoogleSheetsSyncConfigured, syncGoogleSheetCheckboxes } from "../_shared/googleSheets.ts";
 import { extractSourceCodeFromContent, extractSourceCodeFromNotes, stripSourceMetadata } from "../_shared/sourceMetadata.ts";
 import { buildDeliveryEmailHtml, buildDeliveryEmailText, type DeliveryEmailItem, type DeliveryEmailTemplateData, type DeliveryInstruction } from "../../../shared/deliveryEmailTemplate.ts";
@@ -173,16 +173,17 @@ Deno.serve(async (req: Request) => {
       }
 
       const cleanNotes = stripSourceMetadata(key.notes);
-      const displayContent = key.key_type === "account"
+      const shouldRenderAsAccount = key.key_type === "account" || isAccountContent(key.content, cleanNotes);
+      const displayContent = shouldRenderAsAccount
         ? formatDeliveredAccountContent({ content: key.content, notes: key.notes, title })
         : key.content;
-      const accountFields = key.key_type === "account" ? parseAccountFields(displayContent) : [];
+      const accountFields = shouldRenderAsAccount ? parseAccountFields(displayContent) : [];
 
       const tier = normalizeInstructionTier(productById.get(productId ?? "")?.account_tier ?? null);
       const instructionPlatform = resolveInstructionPlatform(accountFields, productById.get(productId ?? "")?.platform ?? null);
       const instruction = tier ? instructionByTierPlatform.get(`${tier}:${instructionPlatform}`) ?? null : null;
 
-      if (key.key_type === "account") {
+      if (shouldRenderAsAccount) {
         return {
           kind: "account",
           title,

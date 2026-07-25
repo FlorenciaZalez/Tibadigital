@@ -27,10 +27,10 @@ const EmailPreview = ({ embedded = false }: { embedded?: boolean }) => {
         kind: "account",
         title: "FC 26 Standard Edition",
         fields: [
-          { label: "Codigo", value: "TDP090" },
+          { label: "Código", value: "TDP090" },
           { label: "Juego", value: "FC 26 Standard Edition" },
           { label: "Email", value: "hq2rpe@batica.com.ar" },
-          { label: "Contrasena", value: "Duda3523" },
+          { label: "Contraseña", value: "Duda3523" },
           { label: "Tipo", value: "PRIMARIA" },
           { label: "Consola", value: "PS4" },
         ],
