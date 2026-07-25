@@ -140,17 +140,26 @@ Deno.serve(async (req: Request) => {
 
     let sheetsSyncSummary = "Google Sheets: no configurado";
     let sheetsSynced = Boolean(order.sheets_synced_at);
-    const deliveredSourceCodes = deliveredItems
+    const deliveredSheetReferences = deliveredItems
       .flatMap(({ key }) => {
         const sourceCode = key?.source_code ?? extractSourceCodeFromNotes(key?.notes) ?? extractSourceCodeFromContent(key?.content);
-        return sourceCode ? [sourceCode] : [];
+        if (!sourceCode) return [];
+        const product = productById.get(typeof key?.product_id === "string" ? key.product_id : "");
+        const fields = isAccountContent(key?.content, key?.notes)
+          ? parseAccountFields(formatDeliveredAccountContent({ content: key.content, notes: key.notes, title: product?.title ?? "Producto" }))
+          : [];
+        return [{
+          sourceCode,
+          accountTier: normalizeInstructionTier(product?.account_tier),
+          platform: resolveInstructionPlatform(fields, product?.platform),
+        }];
       });
 
     if (sheetsSynced) {
       sheetsSyncSummary = "Google Sheets: ya sincronizado";
-    } else if (deliveredSourceCodes.length > 0 && isGoogleSheetsSyncConfigured()) {
+    } else if (deliveredSheetReferences.length > 0 && isGoogleSheetsSyncConfigured()) {
       try {
-        const syncResult = await syncGoogleSheetCheckboxes(deliveredSourceCodes);
+        const syncResult = await syncGoogleSheetCheckboxes(deliveredSheetReferences);
         sheetsSyncSummary = `Google Sheets: OK ${syncResult.updatedCodes.length}`;
         if (syncResult.missingCodes.length > 0) {
           sheetsSyncSummary += ` · faltantes ${syncResult.missingCodes.join(", ")}`;
@@ -160,7 +169,7 @@ Deno.serve(async (req: Request) => {
       } catch (syncError) {
         sheetsSyncSummary = `Google Sheets: FAIL ${(syncError as Error).message}`;
       }
-    } else if (deliveredSourceCodes.length === 0) {
+    } else if (deliveredSheetReferences.length === 0) {
       sheetsSyncSummary = "Google Sheets: sin source_code";
     }
 

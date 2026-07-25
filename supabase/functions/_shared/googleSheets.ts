@@ -30,16 +30,23 @@ const normalizeSourceCode = (value: string | null | undefined) =>
     .replace(/\s+/g, "")
     .toUpperCase();
 
-export const syncGoogleSheetCheckboxes = async (sourceCodes: string[]) => {
-  const codeEntries = sourceCodes
-    .map((code) => ({ original: code.trim(), normalized: normalizeSourceCode(code) }))
+type SheetStockReference = {
+  sourceCode: string;
+  accountTier?: string | null;
+  platform?: string | null;
+};
+
+export const syncGoogleSheetCheckboxes = async (references: SheetStockReference[]) => {
+  const entries = references
+    .map((reference) => ({
+      original: reference.sourceCode.trim(),
+      normalized: normalizeSourceCode(reference.sourceCode),
+      tier: normalizeTier(reference.accountTier),
+      platform: normalizePlatform(reference.platform),
+    }))
     .filter((entry) => entry.original && entry.normalized);
 
-  const uniqueCodes = Array.from(
-    new Map(codeEntries.map((entry) => [entry.normalized, entry.original])).entries(),
-  ).map(([normalized, original]) => ({ normalized, original }));
-
-  if (uniqueCodes.length === 0) return { updatedCodes: [], missingCodes: [] };
+  if (entries.length === 0) return { updatedCodes: [], missingCodes: [] };
 
   const env = getEnv();
   if (!env.serviceAccountEmail || !env.privateKey || !env.spreadsheetId || !env.sheetName) {
@@ -55,21 +62,34 @@ export const syncGoogleSheetCheckboxes = async (sourceCodes: string[]) => {
     checkboxColumn: env.checkboxColumn,
   });
 
-  const rowByCode = new Map<string, number>();
-  values.forEach((row, index) => {
-    const code = normalizeSourceCode(row[0] ?? "");
-    if (code && !rowByCode.has(code)) {
-      rowByCode.set(code, index + 2);
+  const [headers = [], ...dataRows] = values;
+  const normalizedHeaders = headers.map(normalizeHeader);
+  const tierIndex = normalizedHeaders.findIndex((header) => ["p_s", "ps", "tipo_cuenta", "categoria"].includes(header));
+  const platformIndex = normalizedHeaders.findIndex((header) => ["consola", "platform", "plataforma"].includes(header));
+  const checkboxIndex = columnToNumber(env.checkboxColumn) - columnToNumber(env.codeColumn);
+  const usedRows = new Set<number>();
+  const matchedRows: { original: string; row: number }[] = [];
+  const missingCodes: string[] = [];
+
+  entries.forEach((entry) => {
+    const matchIndex = dataRows.findIndex((row, index) => {
+      const sheetRow = index + 2;
+      if (usedRows.has(sheetRow) || isChecked(row[checkboxIndex])) return false;
+      if (normalizeSourceCode(row[0] ?? "") !== entry.normalized) return false;
+      if (entry.tier && tierIndex >= 0 && normalizeTier(row[tierIndex]) !== entry.tier) return false;
+      if (entry.platform && platformIndex >= 0 && normalizePlatform(row[platformIndex]) !== entry.platform) return false;
+      return true;
+    });
+
+    if (matchIndex < 0) {
+      missingCodes.push(`${entry.original}${entry.tier ? ` ${entry.tier}` : ""}${entry.platform ? ` ${entry.platform}` : ""}`);
+      return;
     }
+
+    const row = matchIndex + 2;
+    usedRows.add(row);
+    matchedRows.push({ original: entry.original, row });
   });
-
-  const matchedRows = uniqueCodes
-    .map((entry) => ({ ...entry, row: rowByCode.get(entry.normalized) }))
-    .filter((entry): entry is { normalized: string; original: string; row: number } => Boolean(entry.row));
-
-  const missingCodes = uniqueCodes
-    .filter((entry) => !rowByCode.has(entry.normalized))
-    .map((entry) => entry.original);
 
   if (matchedRows.length > 0) {
     await updateCheckboxCells({
@@ -97,7 +117,7 @@ const getSheetValues = async ({
   codeColumn: string;
   checkboxColumn: string;
 }) => {
-  const range = `${sheetName}!${codeColumn}2:${checkboxColumn}`;
+  const range = `${sheetName}!${codeColumn}1:${checkboxColumn}`;
   const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -109,6 +129,32 @@ const getSheetValues = async ({
   const payload = await response.json();
   return (payload.values ?? []) as string[][];
 };
+
+const normalizeHeader = (value: string) =>
+  (value ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+const normalizeTier = (value: string | null | undefined) => {
+  const normalized = (value ?? "").toLowerCase();
+  if (normalized.includes("prim") || normalized === "primary") return "primary";
+  if (normalized.includes("sec") || normalized === "secondary") return "secondary";
+  if (normalized.includes("plus")) return "plus";
+  return "";
+};
+
+const normalizePlatform = (value: string | null | undefined) => {
+  const normalized = (value ?? "").toUpperCase();
+  if (normalized.includes("PS4") && !normalized.includes("PS5")) return "PS4";
+  if (normalized.includes("PS5") && !normalized.includes("PS4")) return "PS5";
+  if (normalized.includes("PS4") && normalized.includes("PS5")) return "PS4/PS5";
+  return "";
+};
+
+const isChecked = (value: string | undefined) =>
+  ["true", "verdadero", "1", "si", "sí", "vendido"].includes((value ?? "").trim().toLowerCase());
+
+const columnToNumber = (column: string) =>
+  column.toUpperCase().split("").reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0);
 
 const updateCheckboxCells = async ({
   accessToken,
