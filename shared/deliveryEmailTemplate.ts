@@ -109,6 +109,7 @@ export const buildDeliveryEmailHtml = (data: DeliveryEmailTemplateData) => {
           <div style="display:inline-block;vertical-align:top;width:calc(50% - 8px);min-width:220px;margin:0 8px 12px 0;background:#171320;border:1px solid #2f2842;border-radius:12px;padding:14px;box-sizing:border-box;">
             <div style="font-size:11px;line-height:1.2;text-transform:uppercase;letter-spacing:1px;color:#8f87b3;margin-bottom:8px;font-weight:700;">${escapeHtml(field.label)}</div>
             <div style="font-size:17px;line-height:1.4;color:#f7f3ff;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;word-break:break-word;">${escapeHtml(field.value)}</div>
+            ${field.label === "Código de verificación inicial" ? `<div style="margin-top:7px;font-size:11px;line-height:1.4;color:#a9a1c0;">(Válido por única vez. Respetar mayúsculas y minúsculas)</div>` : ""}
           </div>`)
         .join("");
 

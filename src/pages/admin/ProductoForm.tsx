@@ -29,7 +29,7 @@ type VariantDraft = { enabled: boolean; reseller_price: string; price: string; s
 const SALE_VARIANTS: Array<{ key: VariantKey; platform: SalePlatform; tier: SaleTier; label: string }> = [
   { key: "PS4_primary", platform: "PS4", tier: "primary", label: "PS4 · Primaria" },
   { key: "PS5_primary", platform: "PS5", tier: "primary", label: "PS5 · Primaria" },
-  { key: "PS4PS5_secondary", platform: "PS4/PS5", tier: "secondary", label: "PS4/PS5 · Secundaria" },
+  { key: "PS4PS5_secondary", platform: "PS4/PS5", tier: "secondary", label: "Secundaria" },
 ];
 
 const initialVariants = (): Record<VariantKey, VariantDraft> => ({

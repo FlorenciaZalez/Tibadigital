@@ -38,23 +38,35 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    // If reseller, validate code first
+    const redirectUrl = `${window.location.origin}/`;
     if (signupForm.user_type === "reseller") {
-      const { data: codeRow, error: codeErr } = await supabase
-        .from("reseller_codes")
-        .select("id")
-        .eq("code", signupForm.reseller_code.trim())
-        .is("used_by", null)
-        .maybeSingle();
-
-      if (codeErr || !codeRow) {
-        toast.error("Código de revendedor inválido o ya utilizado");
-        setLoading(false);
-        return;
+      const { error } = await supabase.functions.invoke("register-reseller", {
+        body: {
+          email: signupForm.email,
+          password: normalizePassword(signupForm.email, signupForm.password),
+          username: signupForm.username,
+          full_name: signupForm.full_name,
+          country: signupForm.country,
+          reseller_code: signupForm.reseller_code,
+          redirect_to: redirectUrl,
+        },
+      });
+      setLoading(false);
+      if (error) {
+        let message = error.message;
+        try {
+          const payload = await error.context?.json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          // The generic invocation error is used when the response has no JSON body.
+        }
+        toast.error(mapAuthError(message));
+      } else {
+        toast.success("¡Cuenta de revendedor creada!", { description: "Revisá tu email para confirmarla." });
       }
+      return;
     }
 
-    const redirectUrl = `${window.location.origin}/`;
     const { data: signUpData, error } = await supabase.auth.signUp({
       email: signupForm.email,
       password: normalizePassword(signupForm.email, signupForm.password),
@@ -69,15 +81,6 @@ const Auth = () => {
       },
     });
     
-    // If reseller signup succeeded, mark code as used
-    if (!error && signUpData.user && signupForm.user_type === "reseller") {
-      await supabase
-        .from("reseller_codes")
-        .update({ used_by: signUpData.user.id, used_at: new Date().toISOString() })
-        .eq("code", signupForm.reseller_code.trim())
-        .is("used_by", null);
-    }
-
     setLoading(false);
     if (error) {
       toast.error(mapAuthError(error.message));

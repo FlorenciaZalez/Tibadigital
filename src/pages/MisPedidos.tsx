@@ -393,6 +393,11 @@ const MisPedidos = () => {
                                     {f.label === "Código" ? "Cuenta" : f.label}
                                   </div>
                                   <div className="font-mono text-sm break-all">{f.value}</div>
+                                  {f.label === "Código de verificación inicial" && (
+                                    <div className="mt-1 text-[11px] text-muted-foreground">
+                                      (Válido por única vez. Respetar mayúsculas y minúsculas)
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
